@@ -3,10 +3,12 @@
 ## Git 分支策略
 
 ### 主分支
+
 - `main` - 生产环境分支，始终保持可部署状态
 - `develop` - 开发分支，集成所有功能（可选）
 
 ### 功能分支
+
 为每个任务创建独立的功能分支：
 
 ```bash
@@ -19,6 +21,7 @@ git checkout -b feature/task-3-audio-manager
 ## 提交规范
 
 ### 提交信息格式
+
 ```
 <类型>(<范围>): <描述>
 
@@ -28,6 +31,7 @@ git checkout -b feature/task-3-audio-manager
 ```
 
 ### 提交类型
+
 - `feat`: 新功能
 - `fix`: 修复 bug
 - `docs`: 文档更新
@@ -38,6 +42,7 @@ git checkout -b feature/task-3-audio-manager
 - `perf`: 性能优化
 
 ### 提交示例
+
 ```bash
 git commit -m "feat(audio): 实现麦克风录音功能"
 git commit -m "fix(ui): 修复移动端布局问题"
@@ -48,6 +53,7 @@ git commit -m "test(transcription): 添加转录功能单元测试"
 ## 开发工作流程
 
 ### 1. 开始新任务
+
 ```bash
 # 确保在最新的 main 分支
 git checkout main
@@ -61,6 +67,7 @@ git checkout -b feature/task-3-audio-manager
 ```
 
 ### 2. 开发过程中
+
 ```bash
 # 频繁提交，保持小而专注的提交
 git add .
@@ -74,6 +81,7 @@ git commit -m "test(audio): 添加 AudioManager 单元测试"
 ```
 
 ### 3. 完成功能
+
 ```bash
 # 确保所有测试通过
 npm test
@@ -88,6 +96,7 @@ git commit -m "feat(audio): 完成音频管理器功能实现"
 ```
 
 ### 4. 合并到主分支
+
 ```bash
 # 切换到主分支
 git checkout main
@@ -108,6 +117,7 @@ git branch -d feature/task-3-audio-manager
 ## 任务开发建议
 
 ### 每个任务的开发步骤
+
 1. **创建功能分支**
 2. **实现核心功能** - 先写基础实现
 3. **添加测试** - 确保功能正确性
@@ -117,12 +127,14 @@ git branch -d feature/task-3-audio-manager
 7. **合并到主分支**
 
 ### 提交频率建议
+
 - 每完成一个小功能就提交
 - 每修复一个 bug 就提交
 - 每添加一组测试就提交
 - 避免一次性提交大量更改
 
 ### 代码质量检查
+
 ```bash
 # 运行 linter
 npm run lint

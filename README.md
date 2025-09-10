@@ -23,11 +23,13 @@
 ### Git 工作流程
 
 1. **功能开发**: 为每个功能创建独立分支
+
    ```bash
    git checkout -b feature/功能名称
    ```
 
 2. **提交规范**: 使用语义化提交信息
+
    ```bash
    git commit -m "feat: 添加录音功能"
    git commit -m "fix: 修复音频格式转换问题"

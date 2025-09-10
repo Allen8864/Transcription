@@ -50,6 +50,7 @@
 - **部署**: Vercel 静态部署
 
 #### 不使用前端框架的原因
+
 1. **性能考虑**: 减少 JavaScript 包体积，加快首屏加载（模型文件已经较大）
 2. **简单够用**: UI 复杂度不高，状态管理相对简单
 3. **精确控制**: 音频处理和 WebAssembly 集成需要更直接的控制
@@ -60,17 +61,18 @@
 ### 核心组件
 
 #### 1. AudioManager（音频管理器）
+
 ```javascript
 class AudioManager {
   // 麦克风录音管理
   async requestMicrophoneAccess()
   startRecording()
   stopRecording()
-  
+
   // 文件处理
   handleFileUpload(file)
   validateAudioFormat(file)
-  
+
   // 音频预处理
   convertToWAV(audioData)
   splitAudioChunks(audioData, chunkSize)
@@ -78,15 +80,16 @@ class AudioManager {
 ```
 
 #### 2. TranscriptionManager（转录管理器）
+
 ```javascript
 class TranscriptionManager {
   // 模型管理
   async loadWhisperModel()
-  
+
   // 转录处理
   async transcribeAudio(audioData, language)
   async transcribeRealtime(audioChunks)
-  
+
   // 语言处理
   detectLanguage(audioData)
   setLanguage(languageCode)
@@ -94,16 +97,17 @@ class TranscriptionManager {
 ```
 
 #### 3. UIController（界面控制器）
+
 ```javascript
 class UIController {
   // 录音界面
   updateRecordingStatus(isRecording, duration)
   showRecordingIndicator()
-  
+
   // 转录结果
   displayTranscriptionResult(text, isPartial)
   updateRealtimeText(newText)
-  
+
   // 状态管理
   showLoadingState()
   showErrorMessage(error)
@@ -112,6 +116,7 @@ class UIController {
 ```
 
 #### 4. WhisperWorker（Web Worker）
+
 ```javascript
 // whisper-worker.js
 class WhisperWorker {
@@ -125,32 +130,34 @@ class WhisperWorker {
 ### 接口定义
 
 #### 音频数据接口
+
 ```typescript
 interface AudioData {
-  buffer: ArrayBuffer;
-  sampleRate: number;
-  channels: number;
-  duration: number;
+  buffer: ArrayBuffer
+  sampleRate: number
+  channels: number
+  duration: number
 }
 
 interface TranscriptionOptions {
-  language?: string; // 'auto', 'zh', 'en'
-  isRealtime?: boolean;
-  chunkIndex?: number;
+  language?: string // 'auto', 'zh', 'en'
+  isRealtime?: boolean
+  chunkIndex?: number
 }
 
 interface TranscriptionResult {
-  text: string;
-  confidence: number;
-  language: string;
-  isPartial: boolean;
-  timestamp?: number;
+  text: string
+  confidence: number
+  language: string
+  isPartial: boolean
+  timestamp?: number
 }
 ```
 
 ## 数据模型
 
 ### 应用状态模型
+
 ```javascript
 const AppState = {
   // 录音状态
@@ -159,7 +166,7 @@ const AppState = {
     duration: 0,
     chunks: []
   },
-  
+
   // 转录状态
   transcription: {
     isProcessing: false,
@@ -167,50 +174,51 @@ const AppState = {
     partialResults: [],
     language: 'auto'
   },
-  
+
   // 模型状态
   model: {
     isLoaded: false,
     loadingProgress: 0,
     error: null
   },
-  
+
   // UI 状态
   ui: {
     activeTab: 'record', // 'record' | 'upload'
     showLanguageSelector: false,
     theme: 'dark'
   }
-};
+}
 ```
 
 ### 音频处理流程
+
 ```javascript
 const AudioProcessingPipeline = {
   // 1. 音频获取
   input: 'microphone | file',
-  
+
   // 2. 格式转换
   conversion: {
     targetFormat: 'WAV',
     sampleRate: 16000,
     channels: 1
   },
-  
+
   // 3. 分块处理（实时转录）
   chunking: {
     chunkSize: '2-3 seconds',
     overlap: '0.5 seconds',
     bufferSize: 4096
   },
-  
+
   // 4. 模型处理
   processing: {
     model: 'whisper-tiny-q4',
     language: 'auto | zh | en',
     output: 'text + confidence'
   }
-};
+}
 ```
 
 ## 错误处理
@@ -218,11 +226,12 @@ const AudioProcessingPipeline = {
 ### 错误类型和处理策略
 
 #### 1. 权限错误
+
 ```javascript
 class PermissionError extends Error {
   constructor(message) {
-    super(message);
-    this.name = 'PermissionError';
+    super(message)
+    this.name = 'PermissionError'
   }
 }
 
@@ -230,12 +239,13 @@ class PermissionError extends Error {
 ```
 
 #### 2. 模型加载错误
+
 ```javascript
 class ModelLoadError extends Error {
   constructor(message, retryable = true) {
-    super(message);
-    this.name = 'ModelLoadError';
-    this.retryable = retryable;
+    super(message)
+    this.name = 'ModelLoadError'
+    this.retryable = retryable
   }
 }
 
@@ -243,12 +253,13 @@ class ModelLoadError extends Error {
 ```
 
 #### 3. 音频处理错误
+
 ```javascript
 class AudioProcessingError extends Error {
   constructor(message, audioData = null) {
-    super(message);
-    this.name = 'AudioProcessingError';
-    this.audioData = audioData;
+    super(message)
+    this.name = 'AudioProcessingError'
+    this.audioData = audioData
   }
 }
 
@@ -256,6 +267,7 @@ class AudioProcessingError extends Error {
 ```
 
 ### 错误恢复机制
+
 - **自动重试**: 网络相关错误自动重试 3 次
 - **降级处理**: 实时转录失败时切换到批量处理
 - **用户引导**: 提供清晰的错误信息和解决建议
@@ -264,23 +276,27 @@ class AudioProcessingError extends Error {
 ## 测试策略
 
 ### 单元测试
+
 - **AudioManager**: 测试音频录制、文件处理、格式转换
 - **TranscriptionManager**: 测试模型加载、转录功能、语言检测
 - **UIController**: 测试界面更新、状态显示、用户交互
 
 ### 集成测试
+
 - **端到端录音流程**: 从录音开始到转录结果显示
 - **文件上传流程**: 从文件选择到转录完成
 - **实时转录流程**: 测试分块处理和实时更新
 - **错误处理流程**: 测试各种错误场景的处理
 
 ### 性能测试
+
 - **模型加载时间**: 测试不同网络条件下的加载性能
 - **转录速度**: 测试不同长度音频的处理时间
 - **内存使用**: 测试长时间录音的内存占用
 - **移动设备兼容性**: 测试在不同移动设备上的性能
 
 ### 浏览器兼容性测试
+
 - **Chrome/Edge**: 主要支持浏览器
 - **Firefox**: 测试 WebAssembly 兼容性
 - **Safari**: 测试 iOS 设备兼容性
@@ -289,6 +305,7 @@ class AudioProcessingError extends Error {
 ## 部署和优化
 
 ### Vercel 部署配置
+
 ```json
 {
   "builds": [
@@ -307,6 +324,7 @@ class AudioProcessingError extends Error {
 ```
 
 ### 性能优化策略
+
 - **模型预加载**: 在用户交互前开始加载模型
 - **Web Workers**: 避免阻塞主线程
 - **音频压缩**: 优化音频数据传输
@@ -314,6 +332,7 @@ class AudioProcessingError extends Error {
 - **懒加载**: 按需加载非核心功能
 
 ### 资源优化
+
 - **WASM 文件压缩**: 使用 gzip 压缩 WebAssembly 文件
 - **代码分割**: 分离核心功能和辅助功能
 - **CDN 加速**: 利用 Vercel CDN 加速资源加载

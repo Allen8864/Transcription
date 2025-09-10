@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="基于 WhisperCPP 的纯前端语音转文字应用" />
+    <title>Whisper Web Transcription</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-header">
+        <h1>Whisper Web Transcription</h1>
+        <p>基于 WhisperCPP 的纯前端语音转文字</p>
+      </header>
+
+      <main class="app-main">
+        <!-- 语言选择器 -->
+        <div class="language-selector">
+          <label for="language-select">选择语言:</label>
+          <select id="language-select">
+            <option value="auto">自动检测</option>
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+
+        <!-- 功能选项卡 -->
+        <div class="tab-container">
+          <button class="tab-button active" data-tab="record">实时录音</button>
+          <button class="tab-button" data-tab="upload">文件上传</button>
+        </div>
+
+        <!-- 录音功能区域 -->
+        <div id="record-tab" class="tab-content active">
+          <div class="recording-controls">
+            <button id="record-button" class="record-button">
+              <span class="record-icon">🎤</span>
+              <span class="record-text">开始录音</span>
+            </button>
+            <div id="recording-status" class="recording-status hidden">
+              <span class="recording-indicator"></span>
+              <span id="recording-duration">00:00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 文件上传功能区域 -->
+        <div id="upload-tab" class="tab-content">
+          <div class="upload-area" id="upload-area">
+            <div class="upload-content">
+              <span class="upload-icon">📁</span>
+              <p>拖拽音频文件到此处或点击选择</p>
+              <p class="upload-hint">支持 MP3, WAV, M4A, OGG 格式</p>
+              <input type="file" id="file-input" accept="audio/*" hidden />
+            </div>
+          </div>
+          <div id="file-info" class="file-info hidden">
+            <p id="file-name"></p>
+            <p id="file-details"></p>
+            <button id="transcribe-button" class="transcribe-button">
+              开始转录
+            </button>
+          </div>
+        </div>
+
+        <!-- 转录结果区域 -->
+        <div class="transcription-section">
+          <div class="transcription-header">
+            <h3>转录结果</h3>
+            <button id="copy-button" class="copy-button hidden">
+              复制文本
+            </button>
+          </div>
+          <div id="transcription-result" class="transcription-result">
+            <p class="placeholder-text">转录结果将在这里显示...</p>
+          </div>
+          <div id="loading-indicator" class="loading-indicator hidden">
+            <div class="spinner"></div>
+            <p id="loading-text">正在处理...</p>
+          </div>
+        </div>
+      </main>
+
+      <footer class="app-footer">
+        <p>本应用完全在浏览器本地运行，不会上传任何音频数据</p>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
