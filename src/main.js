@@ -17,6 +17,9 @@ class App {
     this.uiLanguageSelect = null
     this.transcriptionLanguageSelect = null
 
+    // 连接组件
+    this.connectComponents()
+
     this.init()
   }
 
@@ -127,9 +130,36 @@ class App {
       this.transcriptionLanguageSelect.setValue(language)
     }
   }
+
+  // 连接各个组件
+  connectComponents() {
+    // 将AudioManager连接到UIController
+    this.uiController.setAudioManager(this.audioManager)
+    this.uiController.setTranscriptionManager(this.transcriptionManager)
+  }
+
+  // 清理资源
+  cleanup() {
+    if (this.audioManager) {
+      this.audioManager.cleanup()
+    }
+    console.log('App resources cleaned up')
+  }
 }
 
 // Start the application
 document.addEventListener('DOMContentLoaded', () => {
-  new App()
+  const app = new App()
+  
+  // 页面卸载时清理资源
+  window.addEventListener('beforeunload', () => {
+    app.cleanup()
+  })
+  
+  // 页面隐藏时也清理资源（移动端）
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      app.cleanup()
+    }
+  })
 })

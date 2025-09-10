@@ -1,6 +1,12 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+  // Test configuration
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./tests/setup.js']
+  },
   // Base configuration for Vercel deployment
   base: './',
 

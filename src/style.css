@@ -257,6 +257,14 @@ body {
     width: 100%;
 }
 
+.recording-controls {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-lg);
+}
+
 .record-button {
     width: 80px;
     height: 80px;
@@ -312,6 +320,212 @@ body {
     background-color: var(--error);
     border-radius: var(--radius-full);
     animation: blink 1s infinite;
+}
+
+/* Close Player Button */
+.close-player-button {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-player-button:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--border-hover);
+}
+
+.close-player-button svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Audio Player Controls */
+.audio-player {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    width: 100%;
+    max-width: 700px;
+}
+
+.play-button {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+    border: none;
+    background-color: var(--accent-primary);
+    color: white;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.play-button:hover {
+    background-color: var(--accent-secondary);
+    transform: scale(1.05);
+}
+
+.play-button.playing {
+    background-color: var(--error);
+}
+
+.progress-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    margin: 0 var(--spacing-sm);
+}
+
+.progress-bar {
+    position: relative;
+    width: 100%;
+    height: 6px;
+    background-color: var(--bg-primary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: var(--accent-primary);
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.1s ease;
+}
+
+.progress-slider {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 20px;
+    margin-top: -10px;
+    opacity: 0;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.progress-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    cursor: pointer;
+    opacity: 1;
+}
+
+.progress-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    cursor: pointer;
+    border: none;
+}
+
+.audio-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-shrink: 0;
+}
+
+.volume-control {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.volume-button {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--transition-normal);
+}
+
+.volume-button:hover {
+    color: var(--text-primary);
+}
+
+.volume-slider {
+    width: 60px;
+    height: 4px;
+    background: var(--bg-primary);
+    border-radius: 2px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    cursor: pointer;
+}
+
+.volume-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    cursor: pointer;
+    border: none;
+}
+
+.audio-time {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-family: 'Courier New', monospace;
+    min-width: 120px;
+    text-align: center;
+}
+
+.download-button {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.download-button:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--border-hover);
 }
 
 /* Upload Section */
@@ -610,6 +824,41 @@ body {
     .upload-hint {
         font-size: 0.75rem;
     }
+
+    .recording-section {
+        gap: var(--spacing-md);
+    }
+
+    .recording-controls {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
+    .record-info {
+        align-items: center;
+    }
+
+    .audio-player {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        max-width: none;
+    }
+
+    .progress-container {
+        order: 1;
+        margin: 0;
+        width: 100%;
+    }
+
+    .audio-controls {
+        order: 2;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .volume-control {
+        display: none; /* Hide volume control on mobile */
+    }
 }
 
 @media (max-width: 480px) {
@@ -830,4 +1079,146 @@ body {
 
 .upload-area:focus {
     outline-offset: -2px;
+}
+
+/* Button focus improvements */
+button:focus {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* Remove focus outline when not using keyboard navigation */
+button:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* Ensure buttons lose visual focus state after click */
+button:active {
+    outline: none;
+}
+
+.record-button:focus:not(:focus-visible),
+.play-button:focus:not(:focus-visible),
+.download-button:focus:not(:focus-visible),
+.close-player-button:focus:not(:focus-visible),
+.volume-button:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* Slider focus improvements */
+input[type="range"]:focus:not(:focus-visible) {
+    outline: none;
+}
+
+input[type="range"]:active {
+    outline: none;
+}
+
+.progress-slider:focus:not(:focus-visible),
+.volume-slider:focus:not(:focus-visible) {
+    outline: none;
+}
+
+.record-button {
+    width: 60px;
+    height: 60px;
+    border-radius: var(--radius-full);
+    border: 3px solid var(--accent-primary);
+    background: var(--bg-secondary);
+    color: var(--accent-primary);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.record-button:hover {
+    background: var(--accent-primary);
+    color: white;
+    transform: scale(1.05);
+}
+
+.record-button.recording {
+    background: var(--error);
+    border-color: var(--error);
+    color: white;
+    animation: pulse 2s infinite;
+}
+
+.record-button.recording:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+.record-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.record-info {
+    margin-left: var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.record-text {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.recording-status {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.recording-status.hidden {
+    display: none;
+}
+
+.recording-indicator {
+    width: 8px;
+    height: 8px;
+    background: var(--error);
+    border-radius: var(--radius-full);
+    animation: blink 1s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+@keyframes blink {
+    0%, 50% {
+        opacity: 1;
+    }
+    51%, 100% {
+        opacity: 0.3;
+    }
 }

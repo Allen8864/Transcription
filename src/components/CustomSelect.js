@@ -301,6 +301,9 @@ export class CustomSelect {
     this.optionsList.querySelectorAll('.custom-select-option').forEach(opt => {
       opt.classList.remove('focused')
     })
+    
+    // 让选择器失焦
+    this.selectContainer.blur()
   }
 
   toggle() {
