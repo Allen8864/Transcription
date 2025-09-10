@@ -27,7 +27,7 @@
   - 实现实时音频数据流处理管道
   - _需求: 1.3, 1.4, 1.9_
 
-- [ ] 5. WhisperCPP WebAssembly 集成
+- [x] 5. WhisperCPP WebAssembly 集成
   - 集成 whisper.cpp WASM 模块和 Tiny 量化模型文件
   - 创建 Web Worker 用于后台运行 Whisper 模型
   - 实现模型加载进度显示和错误处理

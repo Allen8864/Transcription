@@ -3,35 +3,274 @@
  */
 export class TranscriptionManager {
   constructor() {
-    this.model = null
+    this.worker = null
     this.isModelLoaded = false
     this.currentLanguage = 'auto'
+    this.loadingProgress = 0
+    this.messageId = 0
+    this.pendingMessages = new Map()
+    this.onProgressCallback = null
+    this.onErrorCallback = null
   }
 
   async init() {
     console.log('TranscriptionManager initialized')
-    // Initialization logic will be implemented in later tasks
+    await this.initializeWorker()
   }
 
-  // Placeholder methods - will be implemented in task 5 and 6
+  /**
+   * Initialize the Web Worker for Whisper model
+   */
+  async initializeWorker() {
+    try {
+      // Create new worker instance
+      // Handle both browser and test environments
+      let workerUrl
+      if (typeof import.meta !== 'undefined' && import.meta.url) {
+        workerUrl = new URL('../workers/whisper-worker.js', import.meta.url)
+      } else {
+        // Fallback for test environment
+        workerUrl = '../workers/whisper-worker.js'
+      }
+      
+      this.worker = new Worker(workerUrl, { type: 'module' })
+
+      // Set up message handling
+      this.worker.onmessage = (e) => {
+        this.handleWorkerMessage(e.data)
+      }
+
+      this.worker.onerror = (error) => {
+        console.error('Worker error:', error)
+        if (this.onErrorCallback) {
+          this.onErrorCallback(new Error(`Worker error: ${error.message}`))
+        }
+      }
+
+      console.log('Web Worker initialized successfully')
+    } catch (error) {
+      console.error('Failed to initialize Web Worker:', error)
+      throw new Error(`Worker initialization failed: ${error.message}`)
+    }
+  }
+
+  /**
+   * Handle messages from the Web Worker
+   */
+  handleWorkerMessage(message) {
+    const { id, type, data, error } = message
+
+    if (type === 'progress') {
+      // Handle progress updates
+      this.loadingProgress = data.progress
+      if (this.onProgressCallback) {
+        this.onProgressCallback(data.progress)
+      }
+      return
+    }
+
+    // Handle response messages
+    const pendingMessage = this.pendingMessages.get(id)
+    if (!pendingMessage) {
+      console.warn('Received message for unknown ID:', id)
+      return
+    }
+
+    this.pendingMessages.delete(id)
+
+    if (type === 'success') {
+      pendingMessage.resolve(data)
+    } else if (type === 'error') {
+      pendingMessage.reject(new Error(error))
+    }
+  }
+
+  /**
+   * Send message to worker and return promise
+   */
+  sendWorkerMessage(type, data = null) {
+    return new Promise((resolve, reject) => {
+      if (!this.worker) {
+        reject(new Error('Worker not initialized'))
+        return
+      }
+
+      const id = ++this.messageId
+      this.pendingMessages.set(id, { resolve, reject })
+
+      this.worker.postMessage({ id, type, data })
+
+      // Set timeout for worker messages
+      setTimeout(() => {
+        if (this.pendingMessages.has(id)) {
+          this.pendingMessages.delete(id)
+          reject(new Error('Worker message timeout'))
+        }
+      }, 60000) // 60 second timeout
+    })
+  }
+
+  /**
+   * Load the Whisper model
+   */
   async loadWhisperModel() {
-    throw new Error('Not implemented yet')
+    try {
+      console.log('Loading Whisper model...')
+      this.loadingProgress = 0
+      
+      const result = await this.sendWorkerMessage('init')
+      
+      this.isModelLoaded = true
+      this.loadingProgress = 100
+      
+      console.log('Whisper model loaded successfully:', result)
+      return result
+    } catch (error) {
+      this.isModelLoaded = false
+      console.error('Failed to load Whisper model:', error)
+      throw new Error(`Model loading failed: ${error.message}`)
+    }
   }
 
-  async transcribeAudio(_audioData, _language) {
-    throw new Error('Not implemented yet')
+  /**
+   * Transcribe audio data
+   */
+  async transcribeAudio(audioData, language = null) {
+    if (!this.isModelLoaded) {
+      throw new Error('Model not loaded. Call loadWhisperModel() first.')
+    }
+
+    try {
+      const options = {
+        language: language || this.currentLanguage,
+        returnTimestamps: true,
+        isRealtime: false
+      }
+
+      const result = await this.sendWorkerMessage('transcribe', {
+        audioData,
+        options
+      })
+
+      return result
+    } catch (error) {
+      console.error('Transcription failed:', error)
+      throw new Error(`Transcription failed: ${error.message}`)
+    }
   }
 
-  async transcribeRealtime(_audioChunks) {
-    throw new Error('Not implemented yet')
+  /**
+   * Transcribe audio chunks for realtime processing
+   */
+  async transcribeRealtime(audioChunks) {
+    if (!this.isModelLoaded) {
+      throw new Error('Model not loaded. Call loadWhisperModel() first.')
+    }
+
+    const results = []
+
+    try {
+      for (let i = 0; i < audioChunks.length; i++) {
+        const options = {
+          language: this.currentLanguage,
+          isRealtime: true,
+          chunkIndex: i,
+          chunkLength: 10, // Shorter chunks for realtime
+          strideLength: 2
+        }
+
+        const result = await this.sendWorkerMessage('transcribe', {
+          audioData: audioChunks[i],
+          options
+        })
+
+        results.push(result)
+      }
+
+      return results
+    } catch (error) {
+      console.error('Realtime transcription failed:', error)
+      throw new Error(`Realtime transcription failed: ${error.message}`)
+    }
   }
 
-  detectLanguage(_audioData) {
-    throw new Error('Not implemented yet')
+  /**
+   * Detect language from audio data
+   */
+  async detectLanguage(audioData) {
+    if (!this.isModelLoaded) {
+      throw new Error('Model not loaded. Call loadWhisperModel() first.')
+    }
+
+    try {
+      // Use a small sample for language detection
+      const sampleSize = Math.min(audioData.byteLength, 16000 * 5) // 5 seconds max
+      const sampleData = audioData.slice(0, sampleSize)
+
+      const options = {
+        language: null, // Auto-detect
+        returnTimestamps: false
+      }
+
+      const result = await this.sendWorkerMessage('transcribe', {
+        audioData: sampleData,
+        options
+      })
+
+      return result.language || 'unknown'
+    } catch (error) {
+      console.error('Language detection failed:', error)
+      return 'unknown'
+    }
   }
 
+  /**
+   * Set the transcription language
+   */
   setLanguage(languageCode) {
     this.currentLanguage = languageCode
+    console.log('Language set to:', languageCode)
+  }
+
+  /**
+   * Get model loading progress
+   */
+  getLoadingProgress() {
+    return this.loadingProgress
+  }
+
+  /**
+   * Check if model is loaded
+   */
+  isReady() {
+    return this.isModelLoaded
+  }
+
+  /**
+   * Set progress callback for model loading
+   */
+  setProgressCallback(callback) {
+    this.onProgressCallback = callback
+  }
+
+  /**
+   * Set error callback
+   */
+  setErrorCallback(callback) {
+    this.onErrorCallback = callback
+  }
+
+  /**
+   * Clean up resources
+   */
+  destroy() {
+    if (this.worker) {
+      this.worker.terminate()
+      this.worker = null
+    }
+    this.pendingMessages.clear()
+    this.isModelLoaded = false
+    this.loadingProgress = 0
   }
 
   // Temporary implementation for file transcription (Task 8)

@@ -23,9 +23,18 @@ global.navigator.mediaDevices = {
   getUserMedia: vi.fn()
 }
 
-global.URL = {
-  createObjectURL: vi.fn(() => 'blob:mock-url'),
-  revokeObjectURL: vi.fn()
+// Mock URL constructor and static methods
+global.URL = class URL {
+  constructor(url, base) {
+    this.href = url
+    this.origin = 'http://localhost'
+    this.protocol = 'http:'
+    this.host = 'localhost'
+    this.pathname = url
+  }
+  
+  static createObjectURL = vi.fn(() => 'blob:mock-url')
+  static revokeObjectURL = vi.fn()
 }
 
 global.AudioContext = vi.fn(() => ({
@@ -59,5 +68,18 @@ global.Blob = class Blob {
       (acc, chunk) => acc + (chunk.length || chunk.size || 0),
       0
     )
+  }
+}
+
+// Mock Worker constructor
+global.Worker = vi.fn()
+
+// Mock import.meta for ES modules
+if (!global.import) {
+  global.import = {}
+}
+if (!global.import.meta) {
+  global.import.meta = {
+    url: 'file:///test/mock.js'
   }
 }
