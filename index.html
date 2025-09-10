@@ -1,92 +1,140 @@
 <!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="基于 WhisperCPP 的纯前端语音转文字应用" />
-    <title>Whisper Web Transcription</title>
-  </head>
-  <body>
-    <div id="app">
-      <header class="app-header">
-        <h1>Whisper Web Transcription</h1>
-        <p>基于 WhisperCPP 的纯前端语音转文字</p>
-      </header>
+<html lang="en">
 
-      <main class="app-main">
-        <!-- 语言选择器 -->
-        <div class="language-selector">
-          <label for="language-select">选择语言:</label>
-          <select id="language-select">
-            <option value="auto">自动检测</option>
-            <option value="zh">中文</option>
-            <option value="en">English</option>
-          </select>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Pure frontend speech-to-text application based on WhisperCPP" />
+  <title>Whisper Web Transcription</title>
+</head>
+
+<body>
+  <div id="app">
+    <!-- Top Bar with Title and Language Selector -->
+    <header class="top-bar">
+      <div class="top-bar-content">
+        <div class="title-section">
+          <h1>Whisper Web Transcription</h1>
+          <span class="subtitle">Pure frontend speech-to-text application based on WhisperCPP</span>
         </div>
-
-        <!-- 功能选项卡 -->
-        <div class="tab-container">
-          <button class="tab-button active" data-tab="record">实时录音</button>
-          <button class="tab-button" data-tab="upload">文件上传</button>
+        <div class="ui-language-selector">
+          <div id="ui-language-select" aria-label="Select interface language"></div>
         </div>
+      </div>
+    </header>
 
-        <!-- 录音功能区域 -->
-        <div id="record-tab" class="tab-content active">
-          <div class="recording-controls">
-            <button id="record-button" class="record-button">
-              <span class="record-icon">🎤</span>
-              <span class="record-text">开始录音</span>
+    <!-- Main Content Container -->
+    <div class="main-content">
+      <main class="main-grid">
+      <!-- Left Panel: Controls -->
+      <div class="controls-panel">
+        <!-- Left Side: Settings and Tabs -->
+        <div class="controls-left">
+          <!-- Language Selector -->
+          <div class="language-selector">
+            <label for="language-select">Language:</label>
+            <div id="language-select"></div>
+          </div>
+
+          <!-- Tab Buttons -->
+          <div class="tab-container" role="tablist" aria-label="Function selection">
+            <button class="tab-button active" data-tab="record" role="tab" aria-selected="true">
+              <span class="tab-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                  <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                </svg>
+              </span>
+              <span class="tab-label">Real-time Recording</span>
             </button>
-            <div id="recording-status" class="recording-status hidden">
-              <span class="recording-indicator"></span>
-              <span id="recording-duration">00:00</span>
+            <button class="tab-button" data-tab="upload" role="tab" aria-selected="false">
+              <span class="tab-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                </svg>
+              </span>
+              <span class="tab-label">File Upload</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Right Side: Tab Content -->
+        <div class="controls-right">
+          <!-- Recording Controls -->
+          <div id="record-tab" class="tab-content active" role="tabpanel">
+            <div class="recording-section">
+              <button id="record-button" class="record-button" aria-label="Start Recording">
+                <span class="record-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                    <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                  </svg>
+                </span>
+              </button>
+              <div class="record-info">
+                <span class="record-text">Start Recording</span>
+                <div id="recording-status" class="recording-status hidden" aria-live="polite">
+                  <span class="recording-indicator"></span>
+                  <span id="recording-duration">00:00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Upload Controls -->
+          <div id="upload-tab" class="tab-content" role="tabpanel">
+            <div class="upload-section">
+              <div class="upload-area" id="upload-area" role="button" tabindex="0" aria-label="Select audio file">
+                <span class="upload-icon">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                  </svg>
+                </span>
+                <p class="upload-text">Drop file or click</p>
+                <p class="upload-hint">MP3, WAV, M4A, OGG</p>
+                <input type="file" id="file-input" accept="audio/*" hidden aria-label="Select audio file" />
+              </div>
+              <div id="file-info" class="file-info hidden">
+                <p id="file-name"></p>
+                <p id="file-details"></p>
+                <button id="transcribe-button" class="transcribe-button">
+                  Start Transcription
+                </button>
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- 文件上传功能区域 -->
-        <div id="upload-tab" class="tab-content">
-          <div class="upload-area" id="upload-area">
-            <div class="upload-content">
-              <span class="upload-icon">📁</span>
-              <p>拖拽音频文件到此处或点击选择</p>
-              <p class="upload-hint">支持 MP3, WAV, M4A, OGG 格式</p>
-              <input type="file" id="file-input" accept="audio/*" hidden />
-            </div>
-          </div>
-          <div id="file-info" class="file-info hidden">
-            <p id="file-name"></p>
-            <p id="file-details"></p>
-            <button id="transcribe-button" class="transcribe-button">
-              开始转录
-            </button>
-          </div>
+      <!-- Right Panel: Results -->
+      <div class="results-panel">
+        <div class="results-header">
+          <h3>Results</h3>
+          <button id="copy-button" class="copy-button hidden" aria-label="Copy transcription text">
+            Copy
+          </button>
         </div>
-
-        <!-- 转录结果区域 -->
-        <div class="transcription-section">
-          <div class="transcription-header">
-            <h3>转录结果</h3>
-            <button id="copy-button" class="copy-button hidden">
-              复制文本
-            </button>
+        <div class="results-content">
+          <div id="transcription-result" class="transcription-result" role="log" aria-live="polite">
+            <p class="placeholder-text">Transcription results will appear here...</p>
           </div>
-          <div id="transcription-result" class="transcription-result">
-            <p class="placeholder-text">转录结果将在这里显示...</p>
-          </div>
-          <div id="loading-indicator" class="loading-indicator hidden">
+          <div id="loading-indicator" class="loading-indicator hidden" aria-live="polite">
             <div class="spinner"></div>
-            <p id="loading-text">正在处理...</p>
+            <p id="loading-text">Processing...</p>
           </div>
         </div>
-      </main>
-
-      <footer class="app-footer">
-        <p>本应用完全在浏览器本地运行，不会上传任何音频数据</p>
-      </footer>
+      </div>
+    </main>
     </div>
 
-    <script type="module" src="/src/main.js"></script>
-  </body>
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>This application runs entirely in your browser and does not upload any audio data</p>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+
 </html>

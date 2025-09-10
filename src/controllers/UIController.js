@@ -2,9 +2,10 @@
  * UIController - Handles all user interface interactions and updates
  */
 export class UIController {
-  constructor() {
+  constructor(i18nController = null) {
     this.elements = {}
     this.currentTab = 'record'
+    this.i18n = i18nController
   }
 
   init() {
@@ -52,10 +53,8 @@ export class UIController {
       })
     })
 
-    // Language selection
-    this.elements.languageSelect.addEventListener('change', e => {
-      this.onLanguageChange(e.target.value)
-    })
+    // Language selection - 注意：现在语言选择器由main.js中的App类管理
+    // 这里不再需要直接监听change事件，因为使用了自定义下拉框组件
 
     // Recording controls
     this.elements.recordButton.addEventListener('click', () => {
@@ -166,13 +165,17 @@ export class UIController {
 
   copyTranscriptionResult() {
     const text = this.elements.transcriptionResult.textContent
-    if (text && text !== '转录结果将在这里显示...') {
+    const placeholderText = this.i18n ? this.i18n.t('resultsPlaceholder') : 'Transcription results will appear here...'
+
+    if (text && text !== placeholderText) {
       navigator.clipboard
         .writeText(text)
         .then(() => {
           // Show success feedback
           const originalText = this.elements.copyButton.textContent
-          this.elements.copyButton.textContent = '已复制!'
+          const copiedText = this.i18n ? this.i18n.t('copied') : 'Copied!'
+
+          this.elements.copyButton.textContent = copiedText
           setTimeout(() => {
             this.elements.copyButton.textContent = originalText
           }, 2000)
