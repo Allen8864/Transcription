@@ -12,7 +12,7 @@ class App {
     this.audioManager = new AudioManager()
     this.transcriptionManager = new TranscriptionManager()
     this.uiController = new UIController(this.i18nController)
-    
+
     // 自定义下拉框实例
     this.uiLanguageSelect = null
     this.transcriptionLanguageSelect = null
@@ -49,7 +49,7 @@ class App {
     }, 100)
 
     // Subscribe to language changes to update dynamic content
-    this.i18nController.subscribe((newLanguage) => {
+    this.i18nController.subscribe(_newLanguage => {
       // Update any dynamic content that might need refreshing
       this.updateDynamicContent()
       // 更新转录语言选择器的选项文本
@@ -71,22 +71,26 @@ class App {
       })
 
       // 监听语言变化
-      this.uiLanguageSelect.onChange((value) => {
+      this.uiLanguageSelect.onChange(value => {
         this.i18nController.changeLanguage(value)
       })
     }
 
     // 初始化转录语言选择器
-    const transcriptionLanguageContainer = document.getElementById('language-select')
+    const transcriptionLanguageContainer =
+      document.getElementById('language-select')
     if (transcriptionLanguageContainer) {
-      this.transcriptionLanguageSelect = new CustomSelect(transcriptionLanguageContainer, {
-        items: this.getTranscriptionLanguageItems(),
-        value: 'auto',
-        placeholder: 'Select Language'
-      })
+      this.transcriptionLanguageSelect = new CustomSelect(
+        transcriptionLanguageContainer,
+        {
+          items: this.getTranscriptionLanguageItems(),
+          value: 'auto',
+          placeholder: 'Select Language'
+        }
+      )
 
       // 可以在这里添加转录语言变化的处理逻辑
-      this.transcriptionLanguageSelect.onChange((value) => {
+      this.transcriptionLanguageSelect.onChange(value => {
         console.log('Transcription language changed to:', value)
         // 这里可以添加转录语言变化的处理逻辑
       })
@@ -106,12 +110,12 @@ class App {
   updateTranscriptionLanguageItems() {
     if (this.transcriptionLanguageSelect) {
       const currentValue = this.transcriptionLanguageSelect.getValue()
-      this.transcriptionLanguageSelect.setItems(this.getTranscriptionLanguageItems())
+      this.transcriptionLanguageSelect.setItems(
+        this.getTranscriptionLanguageItems()
+      )
       this.transcriptionLanguageSelect.setValue(currentValue)
     }
   }
-
-
 
   updateDynamicContent() {
     // This method can be used to update any dynamic content
@@ -121,7 +125,9 @@ class App {
 
   // 获取当前选择的转录语言
   getSelectedTranscriptionLanguage() {
-    return this.transcriptionLanguageSelect ? this.transcriptionLanguageSelect.getValue() : 'auto'
+    return this.transcriptionLanguageSelect
+      ? this.transcriptionLanguageSelect.getValue()
+      : 'auto'
   }
 
   // 设置转录语言
@@ -150,12 +156,15 @@ class App {
 // Start the application
 document.addEventListener('DOMContentLoaded', () => {
   const app = new App()
-  
+
+  // Make app instance available globally for UIController
+  window.app = app
+
   // 页面卸载时清理资源
   window.addEventListener('beforeunload', () => {
     app.cleanup()
   })
-  
+
   // 页面隐藏时也清理资源（移动端）
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {

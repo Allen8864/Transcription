@@ -8,12 +8,10 @@ describe('AudioManager', () => {
 
   beforeEach(() => {
     audioManager = new AudioManager()
-    
+
     // Mock MediaStream
     mockStream = {
-      getTracks: vi.fn(() => [
-        { stop: vi.fn() }
-      ])
+      getTracks: vi.fn(() => [{ stop: vi.fn() }])
     }
 
     // Mock MediaRecorder
@@ -35,7 +33,7 @@ describe('AudioManager', () => {
     // Reset global mocks
     global.MediaRecorder = vi.fn(() => mockMediaRecorder)
     global.MediaRecorder.isTypeSupported = vi.fn(() => true)
-    
+
     // Ensure navigator and mediaDevices exist
     if (!global.navigator) {
       global.navigator = {}
@@ -43,7 +41,9 @@ describe('AudioManager', () => {
     if (!global.navigator.mediaDevices) {
       global.navigator.mediaDevices = {}
     }
-    global.navigator.mediaDevices.getUserMedia = vi.fn(() => Promise.resolve(mockStream))
+    global.navigator.mediaDevices.getUserMedia = vi.fn(() =>
+      Promise.resolve(mockStream)
+    )
   })
 
   afterEach(() => {
@@ -58,19 +58,23 @@ describe('AudioManager', () => {
 
     it('should throw error if MediaRecorder is not supported', async () => {
       global.MediaRecorder = undefined
-      await expect(audioManager.init()).rejects.toThrow('MediaRecorder API is not supported')
+      await expect(audioManager.init()).rejects.toThrow(
+        'MediaRecorder API is not supported'
+      )
     })
 
     it('should throw error if getUserMedia is not supported', async () => {
       global.navigator.mediaDevices = undefined
-      await expect(audioManager.init()).rejects.toThrow('getUserMedia API is not supported')
+      await expect(audioManager.init()).rejects.toThrow(
+        'getUserMedia API is not supported'
+      )
     })
   })
 
   describe('Microphone Access', () => {
     it('should request microphone access successfully', async () => {
       const stream = await audioManager.requestMicrophoneAccess()
-      
+
       expect(global.navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith({
         audio: {
           echoCancellation: true,
@@ -126,14 +130,14 @@ describe('AudioManager', () => {
         mimeType: 'audio/webm',
         audioBitsPerSecond: 128000
       })
-      expect(mockMediaRecorder.start).toHaveBeenCalledWith(1000)
+      expect(mockMediaRecorder.start).toHaveBeenCalledWith()
       expect(audioManager.isRecording).toBe(true)
       expect(audioManager.recordingStartTime).toBeTruthy()
     })
 
     it('should throw error if already recording', async () => {
       await audioManager.startRecording()
-      
+
       await expect(audioManager.startRecording()).rejects.toThrow(
         'Recording is already in progress'
       )
@@ -142,15 +146,18 @@ describe('AudioManager', () => {
     it('should request microphone access if not available', async () => {
       audioManager.audioStream = null
       const getUserMediaSpy = vi.spyOn(audioManager, 'requestMicrophoneAccess')
-      
+
       await audioManager.startRecording()
-      
+
       expect(getUserMediaSpy).toHaveBeenCalled()
     })
 
     it('should stop recording and return audio blob', async () => {
       await audioManager.startRecording()
-      
+
+      // Set MediaRecorder state to 'recording' to simulate active recording
+      mockMediaRecorder.state = 'recording'
+
       // Simulate audio chunks
       audioManager.audioChunks = [
         new Blob(['chunk1'], { type: 'audio/webm' }),
@@ -158,12 +165,12 @@ describe('AudioManager', () => {
       ]
 
       const stopPromise = audioManager.stopRecording()
-      
+
       // Simulate MediaRecorder stop event
       mockMediaRecorder.onstop()
-      
+
       const audioBlob = await stopPromise
-      
+
       expect(mockMediaRecorder.stop).toHaveBeenCalled()
       expect(audioBlob).toBeInstanceOf(Blob)
       expect(audioManager.isRecording).toBe(false)
@@ -178,25 +185,27 @@ describe('AudioManager', () => {
 
     it('should handle recording errors', async () => {
       await audioManager.startRecording()
-      
+
       const stopPromise = audioManager.stopRecording()
       const error = new Error('Recording failed')
-      
+
       // Simulate MediaRecorder error event
       mockMediaRecorder.onerror({ error })
-      
-      await expect(stopPromise).rejects.toThrow('Recording error: Recording failed')
+
+      await expect(stopPromise).rejects.toThrow(
+        'Recording error: Recording failed'
+      )
     })
 
     it('should calculate recording duration correctly', async () => {
       const startTime = Date.now()
       vi.spyOn(Date, 'now').mockReturnValue(startTime)
-      
+
       await audioManager.startRecording()
-      
+
       // Mock time progression
       vi.spyOn(Date, 'now').mockReturnValue(startTime + 5000) // 5 seconds later
-      
+
       expect(audioManager.getRecordingDuration()).toBe(5)
     })
 
@@ -207,31 +216,37 @@ describe('AudioManager', () => {
 
   describe('File Upload Handling', () => {
     it('should handle valid audio file upload', async () => {
-      const mockFile = new File(['audio data'], 'test.mp3', { type: 'audio/mpeg' })
-      
+      const mockFile = new File(['audio data'], 'test.mp3', {
+        type: 'audio/mpeg'
+      })
+
       const result = await audioManager.handleFileUpload(mockFile)
-      
+
       expect(result.isValid).toBe(true)
       expect(result.file).toBe(mockFile)
       expect(result.error).toBeUndefined()
     })
 
     it('should reject invalid file format', async () => {
-      const mockFile = new File(['text data'], 'test.txt', { type: 'text/plain' })
-      
+      const mockFile = new File(['text data'], 'test.txt', {
+        type: 'text/plain'
+      })
+
       const result = await audioManager.handleFileUpload(mockFile)
-      
+
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('Unsupported file format')
     })
 
     it('should reject files exceeding size limit', async () => {
       const largeSize = 101 * 1024 * 1024 // 101MB
-      const mockFile = new File(['x'.repeat(largeSize)], 'large.mp3', { type: 'audio/mpeg' })
+      const mockFile = new File(['x'.repeat(largeSize)], 'large.mp3', {
+        type: 'audio/mpeg'
+      })
       Object.defineProperty(mockFile, 'size', { value: largeSize })
-      
+
       const result = await audioManager.handleFileUpload(mockFile)
-      
+
       expect(result.isValid).toBe(false)
       expect(result.error).toBe('File size exceeds 100MB limit')
     })
@@ -277,27 +292,37 @@ describe('AudioManager', () => {
     it('should convert Float32Array to WAV format', () => {
       const sampleRate = 16000
       const samples = new Float32Array([0.1, -0.1, 0.5, -0.5])
-      
+
       const wavBuffer = audioManager.convertToWAV(samples, sampleRate, 1)
-      
+
       expect(wavBuffer).toBeInstanceOf(ArrayBuffer)
       expect(wavBuffer.byteLength).toBe(44 + samples.length * 2) // WAV header + PCM data
-      
+
       // Check WAV header
       const view = new DataView(wavBuffer)
-      const riff = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3))
+      const riff = String.fromCharCode(
+        view.getUint8(0),
+        view.getUint8(1),
+        view.getUint8(2),
+        view.getUint8(3)
+      )
       expect(riff).toBe('RIFF')
-      
-      const wave = String.fromCharCode(view.getUint8(8), view.getUint8(9), view.getUint8(10), view.getUint8(11))
+
+      const wave = String.fromCharCode(
+        view.getUint8(8),
+        view.getUint8(9),
+        view.getUint8(10),
+        view.getUint8(11)
+      )
       expect(wave).toBe('WAVE')
     })
 
     it('should convert ArrayBuffer to WAV format', () => {
       const samples = new Float32Array([0.1, -0.1, 0.5, -0.5])
       const arrayBuffer = samples.buffer
-      
+
       const wavBuffer = audioManager.convertToWAV(arrayBuffer)
-      
+
       expect(wavBuffer).toBeInstanceOf(ArrayBuffer)
       expect(wavBuffer.byteLength).toBeGreaterThan(44)
     })
@@ -311,7 +336,7 @@ describe('AudioManager', () => {
     it('should handle conversion errors gracefully', () => {
       // Mock a scenario that would cause an error
       const invalidData = null
-      
+
       expect(() => {
         audioManager.convertToWAV(invalidData)
       }).toThrow('Failed to convert audio to WAV')
@@ -324,12 +349,12 @@ describe('AudioManager', () => {
       const duration = 10 // 10 seconds
       const samples = new Float32Array(sampleRate * duration)
       samples.fill(0.1) // Fill with sample data
-      
+
       const chunks = audioManager.splitAudioChunks(samples)
-      
+
       expect(chunks.length).toBeGreaterThan(1)
       expect(chunks[0]).toBeInstanceOf(Float32Array)
-      
+
       // Check chunk sizes (should be around 2.5 seconds = 40000 samples at 16kHz)
       const expectedChunkSize = 2.5 * sampleRate
       expect(chunks[0].length).toBeCloseTo(expectedChunkSize, -1000) // Allow some variance
@@ -339,14 +364,19 @@ describe('AudioManager', () => {
       const sampleRate = 16000
       const samples = new Float32Array(sampleRate * 6) // 6 seconds
       samples.fill(0.1)
-      
+
       const chunkSize = 2.0 // 2 seconds
-      const overlap = 0.2   // 0.2 seconds
-      
-      const chunks = audioManager.splitAudioChunks(samples, chunkSize, sampleRate, overlap)
-      
+      const overlap = 0.2 // 0.2 seconds
+
+      const chunks = audioManager.splitAudioChunks(
+        samples,
+        chunkSize,
+        sampleRate,
+        overlap
+      )
+
       expect(chunks.length).toBeGreaterThan(1)
-      
+
       // Check that chunks have expected size
       const expectedSamples = chunkSize * sampleRate
       expect(chunks[0].length).toBe(expectedSamples)
@@ -355,9 +385,9 @@ describe('AudioManager', () => {
     it('should handle ArrayBuffer input', () => {
       const samples = new Float32Array([0.1, -0.1, 0.5, -0.5])
       const arrayBuffer = samples.buffer
-      
+
       const chunks = audioManager.splitAudioChunks(arrayBuffer, 1.0, 4, 0)
-      
+
       expect(chunks.length).toBe(1)
       expect(chunks[0]).toBeInstanceOf(Float32Array)
     })
@@ -366,9 +396,9 @@ describe('AudioManager', () => {
       const sampleRate = 16000
       const samples = new Float32Array(sampleRate * 0.3) // 0.3 seconds (too short)
       samples.fill(0.1)
-      
+
       const chunks = audioManager.splitAudioChunks(samples, 2.0, sampleRate, 0)
-      
+
       expect(chunks.length).toBe(0) // Should be filtered out
     })
 
@@ -383,9 +413,9 @@ describe('AudioManager', () => {
     it('should clean up all resources', async () => {
       await audioManager.requestMicrophoneAccess()
       await audioManager.startRecording()
-      
+
       audioManager.cleanup()
-      
+
       expect(audioManager.audioStream).toBeNull()
       expect(audioManager.audioChunks).toEqual([])
       expect(audioManager.isRecording).toBe(false)
@@ -395,20 +425,20 @@ describe('AudioManager', () => {
     it('should stop recording during cleanup', async () => {
       await audioManager.requestMicrophoneAccess()
       await audioManager.startRecording()
-      
+
       audioManager.cleanup()
-      
+
       expect(mockMediaRecorder.stop).toHaveBeenCalled()
     })
 
     it('should stop all audio tracks', async () => {
       await audioManager.requestMicrophoneAccess()
-      
+
       const stopSpy = vi.fn()
       audioManager.audioStream.getTracks.mockReturnValue([{ stop: stopSpy }])
-      
+
       audioManager.cleanup()
-      
+
       expect(stopSpy).toHaveBeenCalled()
     })
   })

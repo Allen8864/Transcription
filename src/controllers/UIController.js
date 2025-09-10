@@ -20,6 +20,10 @@ export class UIController {
     this.previousVolume = 1
     this.recordingStartTime = null
     this.recordingEndTime = null
+
+    // File upload state
+    this.currentUploadedFile = null
+    this.isVideoFile = false
   }
 
   // 设置AudioManager引用
@@ -71,6 +75,7 @@ export class UIController {
       fileName: document.getElementById('file-name'),
       fileDetails: document.getElementById('file-details'),
       transcribeButton: document.getElementById('transcribe-button'),
+      cancelFileButton: document.getElementById('cancel-file-button'),
 
       // Transcription results
       transcriptionResult: document.getElementById('transcription-result'),
@@ -94,35 +99,38 @@ export class UIController {
     // 这里不再需要直接监听change事件，因为使用了自定义下拉框组件
 
     // Recording controls
-    this.elements.recordButton.addEventListener('click', (e) => {
+    this.elements.recordButton.addEventListener('click', e => {
       // 立即失焦，避免按钮保持焦点状态
       e.target.blur()
       this.onRecordButtonClick(e.target)
     })
 
     // Audio player controls
-    this.elements.playButton.addEventListener('click', (e) => {
+    this.elements.playButton.addEventListener('click', e => {
       // 立即失焦，避免按钮保持焦点状态
       e.target.blur()
       this.onPlayButtonClick()
     })
 
-    this.elements.progressSlider.addEventListener('input', (e) => {
+    this.elements.progressSlider.addEventListener('input', e => {
       this.onProgressChange(e.target.value)
     })
 
     // 进度滑块失焦处理
-    this.elements.progressSlider.addEventListener('change', (e) => {
+    this.elements.progressSlider.addEventListener('change', e => {
       e.target.blur()
     })
 
-    this.elements.progressSlider.addEventListener('mouseup', (e) => {
+    this.elements.progressSlider.addEventListener('mouseup', e => {
       e.target.blur()
     })
 
     // Keyboard shortcuts for audio player
-    document.addEventListener('keydown', (e) => {
-      if (this.currentAudio && !this.elements.audioPlayer.classList.contains('hidden')) {
+    document.addEventListener('keydown', e => {
+      if (
+        this.currentAudio &&
+        !this.elements.audioPlayer.classList.contains('hidden')
+      ) {
         if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
           e.preventDefault()
           this.onPlayButtonClick()
@@ -130,36 +138,36 @@ export class UIController {
       }
     })
 
-    this.elements.downloadButton.addEventListener('click', (e) => {
+    this.elements.downloadButton.addEventListener('click', e => {
       e.target.blur()
       this.onDownloadButtonClick()
     })
 
-    this.elements.closePlayerButton.addEventListener('click', (e) => {
+    this.elements.closePlayerButton.addEventListener('click', e => {
       e.target.blur()
       this.onClosePlayerButtonClick()
     })
 
-    this.elements.volumeSlider.addEventListener('input', (e) => {
+    this.elements.volumeSlider.addEventListener('input', e => {
       this.onVolumeChange(e.target.value)
     })
 
     // 音量滑块失焦处理
-    this.elements.volumeSlider.addEventListener('change', (e) => {
+    this.elements.volumeSlider.addEventListener('change', e => {
       e.target.blur()
     })
 
-    this.elements.volumeSlider.addEventListener('mouseup', (e) => {
+    this.elements.volumeSlider.addEventListener('mouseup', e => {
       e.target.blur()
     })
 
-    this.elements.volumeButton.addEventListener('click', (e) => {
+    this.elements.volumeButton.addEventListener('click', e => {
       e.target.blur()
       this.onVolumeButtonClick()
     })
 
     // File upload
-    this.elements.uploadArea.addEventListener('click', (e) => {
+    this.elements.uploadArea.addEventListener('click', e => {
       e.target.blur()
       this.elements.fileInput.click()
     })
@@ -183,13 +191,19 @@ export class UIController {
       this.onFileUpload(e.target.files[0])
     })
 
-    this.elements.transcribeButton.addEventListener('click', (e) => {
+    this.elements.transcribeButton.addEventListener('click', e => {
       e.target.blur()
       this.onTranscribeButtonClick()
     })
 
+    // Cancel file button (the X button in file info header)
+    this.elements.cancelFileButton.addEventListener('click', e => {
+      e.target.blur()
+      this.clearFileInfo()
+    })
+
     // Copy button
-    this.elements.copyButton.addEventListener('click', (e) => {
+    this.elements.copyButton.addEventListener('click', e => {
       e.target.blur()
       this.copyTranscriptionResult()
     })
@@ -206,6 +220,19 @@ export class UIController {
       content.classList.toggle('active', content.id === `${tabName}-tab`)
     })
 
+    // Clean up when switching away from upload tab
+    if (this.currentTab === 'upload' && tabName !== 'upload') {
+      this.clearFileInfo()
+    }
+
+    // Hide audio player when switching to upload tab
+    if (
+      tabName === 'upload' &&
+      !this.elements.audioPlayer.classList.contains('hidden')
+    ) {
+      this.hideAudioPlayer()
+    }
+
     this.currentTab = tabName
   }
 
@@ -215,7 +242,7 @@ export class UIController {
     // Will be implemented in later tasks
   }
 
-  async onRecordButtonClick(buttonElement) {
+  async onRecordButtonClick(_buttonElement) {
     if (!this.audioManager) {
       console.error('AudioManager not available')
       this.showErrorMessage('Audio manager not initialized')
@@ -241,7 +268,7 @@ export class UIController {
         // Get the actual recording duration from AudioManager before stopping
         const actualDuration = this.audioManager.getRecordingDuration()
         this.recordingEndTime = Date.now()
-        
+
         const audioBlob = await this.audioManager.stopRecording()
         this.isRecording = false
         this.updateRecordingUI(false)
@@ -256,27 +283,113 @@ export class UIController {
         // 显示音频播放器，传递实际录音时长
         this.showAudioPlayer(audioBlob, actualDuration)
       }
-
-
     } catch (error) {
       console.error('Recording error:', error)
       this.showErrorMessage(error.message)
       this.isRecording = false
       this.updateRecordingUI(false)
       this.stopRecordingTimer()
-
-
     }
   }
 
-  onFileUpload(file) {
-    console.log('File uploaded:', file?.name)
-    // Will be implemented in later tasks
+  async onFileUpload(file) {
+    if (!file) {
+      console.warn('No file provided')
+      return
+    }
+
+    console.log('File uploaded:', file.name)
+
+    try {
+      // Validate the file using AudioManager
+      if (!this.audioManager) {
+        throw new Error('Audio manager not available')
+      }
+
+      const validation = await this.audioManager.handleFileUpload(file)
+
+      if (!validation.isValid) {
+        this.showErrorMessage(validation.error)
+        this.clearFileInfo()
+        return
+      }
+
+      // Store whether this is a video file
+      this.isVideoFile = validation.isVideo
+
+      // Display file information
+      await this.displayFileInfo(file, validation.isVideo)
+    } catch (error) {
+      console.error('File upload error:', error)
+      this.showErrorMessage(error.message)
+      this.clearFileInfo()
+    }
   }
 
-  onTranscribeButtonClick() {
+  async onTranscribeButtonClick() {
     console.log('Transcribe button clicked')
-    // Will be implemented in later tasks
+
+    if (!this.currentUploadedFile) {
+      this.showErrorMessage('No file selected for transcription')
+      return
+    }
+
+    if (!this.transcriptionManager || !this.audioManager) {
+      this.showErrorMessage('Required managers not available')
+      return
+    }
+
+    try {
+      // Show loading state
+      this.showLoadingState()
+      this.elements.transcribeButton.disabled = true
+
+      let fileToTranscribe = this.currentUploadedFile
+
+      // If it's a video file, extract audio first
+      if (this.isVideoFile) {
+        this.elements.transcribeButton.textContent = 'Extracting Audio...'
+        this.elements.loadingText.textContent = 'Extracting audio from video...'
+
+        console.log('Extracting audio from video file...')
+        fileToTranscribe = await this.audioManager.extractAudioFromVideo(
+          this.currentUploadedFile
+        )
+        console.log(
+          'Audio extraction completed, blob size:',
+          fileToTranscribe.size
+        )
+      }
+
+      // Update loading text for transcription
+      this.elements.transcribeButton.textContent = 'Transcribing...'
+      this.elements.loadingText.textContent = 'Processing transcription...'
+
+      // Get selected language
+      const language = this.getSelectedLanguage()
+
+      // Start transcription
+      const result = await this.transcriptionManager.transcribeFile(
+        fileToTranscribe,
+        language
+      )
+
+      // Display result
+      this.displayTranscriptionResult(result.text, false)
+      this.elements.copyButton.classList.remove('hidden')
+    } catch (error) {
+      console.error('Transcription error:', error)
+      this.showErrorMessage(error.message)
+    } finally {
+      // Hide loading state
+      this.hideLoadingState()
+      this.elements.transcribeButton.disabled = false
+
+      this.elements.transcribeButton.textContent = this.i18n ? this.i18n.t('startTranscription') : 'Start Transcription'
+
+      // Reset loading text
+      this.elements.loadingText.textContent = 'Processing...'
+    }
   }
 
   updateRecordingStatus(isRecording, duration) {
@@ -315,7 +428,9 @@ export class UIController {
       // 停止录音时显示文字
       if (recordText) {
         recordText.style.display = 'block'
-        recordText.textContent = this.i18n ? this.i18n.t('startRecording') : 'Start Recording'
+        recordText.textContent = this.i18n
+          ? this.i18n.t('startRecording')
+          : 'Start Recording'
       }
       this.updateRecordingStatus(false)
     }
@@ -340,9 +455,58 @@ export class UIController {
     this.elements.recordingStatus.classList.remove('hidden')
   }
 
-  displayTranscriptionResult(text, isPartial) {
-    // Will be implemented in task 9
-    console.log('Display transcription result:', text, isPartial)
+  displayTranscriptionResult(text, isPartial = false) {
+    if (!text) {
+      console.warn('No text provided for transcription result')
+      return
+    }
+
+    const resultElement = this.elements.transcriptionResult
+    const placeholderElement = resultElement.querySelector('.placeholder-text')
+
+    // Remove placeholder if it exists
+    if (placeholderElement) {
+      placeholderElement.remove()
+    }
+
+    if (isPartial) {
+      // For partial results, append or update the last line
+      const existingText = resultElement.textContent || ''
+      const lines = existingText.split('\n')
+
+      if (lines.length > 0 && lines[lines.length - 1].startsWith('[Partial]')) {
+        // Update the last partial line
+        lines[lines.length - 1] = `[Partial] ${text}`
+      } else {
+        // Add new partial line
+        lines.push(`[Partial] ${text}`)
+      }
+
+      resultElement.textContent = lines.join('\n')
+    } else {
+      // For final results, replace any partial text with final text
+      const existingText = resultElement.textContent || ''
+      const lines = existingText
+        .split('\n')
+        .filter(line => !line.startsWith('[Partial]'))
+
+      if (lines.length > 0 && lines[0] !== '') {
+        lines.push('') // Add empty line separator
+      }
+      lines.push(text)
+
+      resultElement.textContent = lines.join('\n')
+    }
+
+    // Scroll to bottom
+    resultElement.scrollTop = resultElement.scrollHeight
+
+    // Show copy button for final results
+    if (!isPartial) {
+      this.elements.copyButton.classList.remove('hidden')
+    }
+
+    console.log('Transcription result displayed:', { text, isPartial })
   }
 
   updateRealtimeText(newText) {
@@ -362,7 +526,8 @@ export class UIController {
     console.error('Error:', error)
 
     // 简单的错误提示实现
-    const errorMessage = typeof error === 'string' ? error : error.message || 'An error occurred'
+    const errorMessage =
+      typeof error === 'string' ? error : error.message || 'An error occurred'
 
     // 创建临时错误提示
     const errorDiv = document.createElement('div')
@@ -393,7 +558,9 @@ export class UIController {
 
   copyTranscriptionResult() {
     const text = this.elements.transcriptionResult.textContent
-    const placeholderText = this.i18n ? this.i18n.t('resultsPlaceholder') : 'Transcription results will appear here...'
+    const placeholderText = this.i18n
+      ? this.i18n.t('resultsPlaceholder')
+      : 'Transcription results will appear here...'
 
     if (text && text !== placeholderText) {
       navigator.clipboard
@@ -412,6 +579,128 @@ export class UIController {
           console.error('Failed to copy text:', err)
         })
     }
+  }
+
+  // File upload helper methods
+  async displayFileInfo(file, isVideo = false) {
+    try {
+      this.currentUploadedFile = file
+
+      // Hide upload area and show file info section
+      this.elements.uploadArea.classList.add('hidden')
+      this.elements.fileInfo.classList.remove('hidden')
+
+      // Display file name without type indicator
+      this.elements.fileName.textContent = file.name
+
+      // Format file size
+      const fileSize = this.formatFileSize(file.size)
+
+      // Get duration if possible
+      let duration = 'Unknown'
+      try {
+        duration = await this.getMediaDuration(file, isVideo)
+      } catch (error) {
+        console.warn('Could not get media duration:', error)
+      }
+
+      // Display file details
+      const mediaType = isVideo ? 'Video' : 'Audio'
+      this.elements.fileDetails.textContent = `${mediaType} | Size: ${fileSize} | Duration: ${duration}`
+
+      // Update transcribe button text for video files
+      if (isVideo) {
+        this.elements.transcribeButton.textContent = this.i18n ? this.i18n.t('startTranscription') : 'Start Transcription'
+      } else {
+        this.elements.transcribeButton.textContent = this.i18n ? this.i18n.t('startTranscription') : 'Start Transcription'
+      }
+
+      console.log('File info displayed:', {
+        name: file.name,
+        size: fileSize,
+        duration: duration,
+        isVideo: isVideo
+      })
+    } catch (error) {
+      console.error('Error displaying file info:', error)
+      this.showErrorMessage('Failed to display file information')
+    }
+  }
+
+  clearFileInfo() {
+    // Hide file info and show upload area
+    this.elements.fileInfo.classList.add('hidden')
+    this.elements.uploadArea.classList.remove('hidden')
+
+    this.elements.fileName.textContent = ''
+    this.elements.fileDetails.textContent = ''
+    this.currentUploadedFile = null
+    this.isVideoFile = false
+
+    // Reset transcribe button text
+    this.elements.transcribeButton.textContent = this.i18n ? this.i18n.t('startTranscription') : 'Start Transcription'
+
+    // Reset file input
+    this.elements.fileInput.value = ''
+  }
+
+  formatFileSize(bytes) {
+    if (bytes === 0) {
+      return '0 Bytes'
+    }
+
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  async getMediaDuration(file, isVideo = false) {
+    return new Promise((resolve, reject) => {
+      const media = isVideo ? document.createElement('video') : new Audio()
+      const url = URL.createObjectURL(file)
+
+      media.addEventListener('loadedmetadata', () => {
+        URL.revokeObjectURL(url)
+        const duration = media.duration
+        if (isFinite(duration)) {
+          resolve(this.formatTime(duration))
+        } else {
+          resolve('Unknown')
+        }
+      })
+
+      media.addEventListener('error', error => {
+        URL.revokeObjectURL(url)
+        reject(error)
+      })
+
+      // Set timeout to avoid hanging
+      setTimeout(() => {
+        URL.revokeObjectURL(url)
+        resolve('Unknown')
+      }, 10000) // Longer timeout for video files
+
+      media.src = url
+      if (isVideo) {
+        media.muted = true // Mute video to avoid audio playback
+        media.load()
+      }
+    })
+  }
+
+  getSelectedLanguage() {
+    // Try to get language from the app instance if available
+    if (
+      window.app &&
+      typeof window.app.getSelectedTranscriptionLanguage === 'function'
+    ) {
+      return window.app.getSelectedTranscriptionLanguage()
+    }
+
+    // Fallback to 'auto' as default
+    return 'auto'
   }
 
   // Audio Player Methods
@@ -440,7 +729,7 @@ export class UIController {
       this.audioDuration = 0
       this.elements.audioTime.textContent = '00:00 / --:--'
     }
-    
+
     this.elements.progressFill.style.width = '0%'
     this.elements.progressSlider.value = 0
 
@@ -451,8 +740,12 @@ export class UIController {
     // Set up audio event listeners
     this.currentAudio.addEventListener('loadedmetadata', () => {
       const metadataDuration = this.currentAudio.duration
-      console.log('Audio metadata loaded - Duration:', metadataDuration, 'seconds')
-      
+      console.log(
+        'Audio metadata loaded - Duration:',
+        metadataDuration,
+        'seconds'
+      )
+
       // Only update if metadata duration is valid and we don't already have a good duration
       if (isFinite(metadataDuration) && metadataDuration > 0) {
         // If our known duration is very different from metadata, prefer metadata
@@ -483,7 +776,7 @@ export class UIController {
       this.updatePlayButton()
     })
 
-    this.currentAudio.addEventListener('error', (e) => {
+    this.currentAudio.addEventListener('error', e => {
       console.error('Audio loading error:', e)
       console.error('Audio error details:', {
         error: e.error,
@@ -492,8 +785,6 @@ export class UIController {
       })
       this.elements.audioTime.textContent = '00:00 / Error'
     })
-
-
 
     // Show the audio player
     this.elements.audioPlayer.classList.remove('hidden')
@@ -506,7 +797,9 @@ export class UIController {
   }
 
   onPlayButtonClick() {
-    if (!this.currentAudio) return
+    if (!this.currentAudio) {
+      return
+    }
 
     if (this.isPlaying) {
       this.currentAudio.pause()
@@ -536,15 +829,26 @@ export class UIController {
   }
 
   onProgressChange(value) {
-    if (!this.currentAudio || !isFinite(this.audioDuration) || this.audioDuration <= 0) return
+    if (
+      !this.currentAudio ||
+      !isFinite(this.audioDuration) ||
+      this.audioDuration <= 0
+    ) {
+      return
+    }
 
     const time = (value / 100) * this.audioDuration
     // Ensure time is within valid range
-    this.currentAudio.currentTime = Math.min(this.audioDuration, Math.max(0, time))
+    this.currentAudio.currentTime = Math.min(
+      this.audioDuration,
+      Math.max(0, time)
+    )
   }
 
   updateProgress() {
-    if (!this.currentAudio) return
+    if (!this.currentAudio) {
+      return
+    }
 
     // Check if duration is valid
     if (!isFinite(this.audioDuration) || this.audioDuration <= 0) {
@@ -562,7 +866,9 @@ export class UIController {
   }
 
   updateAudioTime() {
-    if (!this.currentAudio) return
+    if (!this.currentAudio) {
+      return
+    }
 
     const currentTime = this.currentAudio.currentTime || 0
     const duration = this.audioDuration || 0
@@ -591,7 +897,9 @@ export class UIController {
   }
 
   onDownloadButtonClick() {
-    if (!this.currentAudioBlob) return
+    if (!this.currentAudioBlob) {
+      return
+    }
 
     const url = URL.createObjectURL(this.currentAudioBlob)
     const a = document.createElement('a')
@@ -665,7 +973,9 @@ export class UIController {
   }
 
   onVolumeChange(value) {
-    if (!this.currentAudio) return
+    if (!this.currentAudio) {
+      return
+    }
 
     const volume = value / 100
     this.currentAudio.volume = volume
@@ -681,7 +991,9 @@ export class UIController {
   }
 
   onVolumeButtonClick() {
-    if (!this.currentAudio) return
+    if (!this.currentAudio) {
+      return
+    }
 
     if (this.isMuted) {
       this.currentAudio.volume = this.previousVolume
@@ -708,4 +1020,6 @@ export class UIController {
 
     this.elements.volumeButton.innerHTML = this.isMuted ? muteIcon : volumeIcon
   }
+
+
 }

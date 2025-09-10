@@ -55,6 +55,9 @@ global.File = class File {
 global.Blob = class Blob {
   constructor(chunks = [], options = {}) {
     this.type = options.type || ''
-    this.size = chunks.reduce((acc, chunk) => acc + (chunk.length || chunk.size || 0), 0)
+    this.size = chunks.reduce(
+      (acc, chunk) => acc + (chunk.length || chunk.size || 0),
+      0
+    )
   }
 }
