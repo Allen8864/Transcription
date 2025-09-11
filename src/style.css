@@ -361,8 +361,8 @@ body {
 }
 
 .play-button {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: var(--radius-full);
     border: none;
     background-color: var(--accent-primary);
@@ -645,6 +645,7 @@ body {
     display: flex;
     justify-content: flex-start;
     align-items: center;
+    gap: var(--spacing-md);
 }
 
 .transcribe-button {
@@ -661,6 +662,23 @@ body {
 
 .transcribe-button:hover {
     background-color: var(--accent-secondary);
+}
+
+/* Upload Audio Player Controls */
+.upload-audio-player {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 0 14px;
+    flex: 1;
+    min-width: 0; /* Allow flex item to shrink */
+}
+
+.upload-audio-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-shrink: 0;
 }
 
 /* Results Panel */
@@ -1289,5 +1307,93 @@ input[type="range"]:active {
     51%,
     100% {
         opacity: 0.3;
+    }
+}
+
+/* Model Loading Section */
+.model-loading-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: var(--spacing-xl);
+}
+
+.model-loading-content {
+    width: 100%;
+    max-width: 400px;
+    padding: var(--spacing-xl);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    text-align: center;
+}
+
+.model-loading-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.model-loading-text {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.model-loading-percentage {
+    font-size: 0.85rem;
+    color: var(--accent-primary);
+    font-weight: 600;
+    min-width: 40px;
+    text-align: right;
+}
+
+.model-progress-bar {
+    width: 100%;
+    height: 8px;
+    background-color: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.model-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.3s ease;
+    position: relative;
+}
+
+.model-progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* Mobile responsive styles for model loading */
+@media (max-width: 768px) {
+    .model-loading-section {
+        padding: var(--spacing-md);
+    }
+
+    .model-loading-content {
+        padding: var(--spacing-lg);
     }
 }

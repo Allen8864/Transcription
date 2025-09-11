@@ -24,6 +24,13 @@ export class UIController {
     // File upload state
     this.currentUploadedFile = null
     this.isVideoFile = false
+
+    // Upload audio player state
+    this.uploadAudio = null
+    this.isUploadPlaying = false
+    this.uploadAudioDuration = 0
+    this.isUploadMuted = false
+    this.uploadPreviousVolume = 1
   }
 
   // 设置AudioManager引用
@@ -76,6 +83,15 @@ export class UIController {
       fileDetails: document.getElementById('file-details'),
       transcribeButton: document.getElementById('transcribe-button'),
       cancelFileButton: document.getElementById('cancel-file-button'),
+
+      // Upload audio player controls
+      uploadAudioPlayer: document.getElementById('upload-audio-player'),
+      uploadPlayButton: document.getElementById('upload-play-button'),
+      uploadProgressFill: document.getElementById('upload-progress-fill'),
+      uploadProgressSlider: document.getElementById('upload-progress-slider'),
+      uploadAudioTime: document.getElementById('upload-audio-time'),
+      uploadVolumeButton: document.getElementById('upload-volume-button'),
+      uploadVolumeSlider: document.getElementById('upload-volume-slider'),
 
       // Transcription results
       transcriptionResult: document.getElementById('transcription-result'),
@@ -207,6 +223,41 @@ export class UIController {
       e.target.blur()
       this.copyTranscriptionResult()
     })
+
+    // Upload audio player controls
+    this.elements.uploadPlayButton.addEventListener('click', e => {
+      e.target.blur()
+      this.onUploadPlayButtonClick()
+    })
+
+    this.elements.uploadProgressSlider.addEventListener('input', e => {
+      this.onUploadProgressChange(e.target.value)
+    })
+
+    this.elements.uploadProgressSlider.addEventListener('change', e => {
+      e.target.blur()
+    })
+
+    this.elements.uploadProgressSlider.addEventListener('mouseup', e => {
+      e.target.blur()
+    })
+
+    this.elements.uploadVolumeSlider.addEventListener('input', e => {
+      this.onUploadVolumeChange(e.target.value)
+    })
+
+    this.elements.uploadVolumeSlider.addEventListener('change', e => {
+      e.target.blur()
+    })
+
+    this.elements.uploadVolumeSlider.addEventListener('mouseup', e => {
+      e.target.blur()
+    })
+
+    this.elements.uploadVolumeButton.addEventListener('click', e => {
+      e.target.blur()
+      this.onUploadVolumeButtonClick()
+    })
   }
 
   switchTab(tabName) {
@@ -282,6 +333,9 @@ export class UIController {
 
         // 显示音频播放器，传递实际录音时长
         this.showAudioPlayer(audioBlob, actualDuration)
+
+        // 自动开始转录录音
+        await this.transcribeRecording(audioBlob)
       }
     } catch (error) {
       console.error('Recording error:', error)
@@ -323,6 +377,44 @@ export class UIController {
       console.error('File upload error:', error)
       this.showErrorMessage(error.message)
       this.clearFileInfo()
+    }
+  }
+
+  /**
+   * 转录录音音频
+   * @param {Blob} audioBlob - 录音音频数据
+   */
+  async transcribeRecording(audioBlob) {
+    if (!this.transcriptionManager) {
+      console.error('TranscriptionManager not available')
+      this.showErrorMessage('Transcription service not available')
+      return
+    }
+
+    try {
+      console.log('Starting recording transcription...')
+      
+      // 显示转录状态
+      this.showTranscriptionStatus('正在转录录音...')
+      
+      // 获取选择的语言
+      const language = this.getSelectedLanguage()
+      
+      // 开始转录
+      const result = await this.transcriptionManager.transcribeFile(audioBlob, language)
+      
+      // 显示转录结果
+      this.displayTranscriptionResult(result.text, false)
+      this.elements.copyButton.classList.remove('hidden')
+      
+      // 隐藏转录状态
+      this.hideTranscriptionStatus()
+      
+      console.log('Recording transcription completed')
+    } catch (error) {
+      console.error('Recording transcription error:', error)
+      this.showErrorMessage(`转录失败: ${error.message}`)
+      this.hideTranscriptionStatus()
     }
   }
 
@@ -509,10 +601,7 @@ export class UIController {
     console.log('Transcription result displayed:', { text, isPartial })
   }
 
-  updateRealtimeText(newText) {
-    // Will be implemented in task 9
-    console.log('Update realtime text:', newText)
-  }
+  // Removed updateRealtimeText method (no longer needed without real-time transcription)
 
   showLoadingState() {
     this.elements.loadingIndicator.classList.remove('hidden')
@@ -554,6 +643,45 @@ export class UIController {
         errorDiv.parentNode.removeChild(errorDiv)
       }
     }, 3000)
+  }
+
+  /**
+   * 显示转录状态
+   * @param {string} message - 状态消息
+   */
+  showTranscriptionStatus(message) {
+    // 移除现有的状态提示
+    this.hideTranscriptionStatus()
+    
+    // 创建状态提示
+    const statusDiv = document.createElement('div')
+    statusDiv.className = 'transcription-status'
+    statusDiv.textContent = message
+    statusDiv.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #007bff;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 4px;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      font-size: 14px;
+    `
+    
+    document.body.appendChild(statusDiv)
+  }
+
+  /**
+   * 隐藏转录状态
+   */
+  hideTranscriptionStatus() {
+    const existingStatus = document.querySelector('.transcription-status')
+    if (existingStatus && existingStatus.parentNode) {
+      existingStatus.parentNode.removeChild(existingStatus)
+    }
   }
 
   copyTranscriptionResult() {
@@ -621,6 +749,9 @@ export class UIController {
         duration: duration,
         isVideo: isVideo
       })
+
+      // Show upload audio player for audio/video files
+      this.showUploadAudioPlayer(file)
     } catch (error) {
       console.error('Error displaying file info:', error)
       this.showErrorMessage('Failed to display file information')
@@ -642,6 +773,9 @@ export class UIController {
 
     // Reset file input
     this.elements.fileInput.value = ''
+
+    // Hide upload audio player
+    this.hideUploadAudioPlayer()
   }
 
   formatFileSize(bytes) {
@@ -1019,6 +1153,208 @@ export class UIController {
     </svg>`
 
     this.elements.volumeButton.innerHTML = this.isMuted ? muteIcon : volumeIcon
+  }
+
+  // Upload Audio Player Methods
+  showUploadAudioPlayer(file) {
+    // Create audio URL
+    const audioUrl = URL.createObjectURL(file)
+
+    // Clean up existing audio
+    if (this.uploadAudio) {
+      this.uploadAudio.pause()
+      URL.revokeObjectURL(this.uploadAudio.src)
+    }
+
+    this.uploadAudio = new Audio(audioUrl)
+    this.uploadAudio.preload = 'metadata'
+    this.uploadAudio.load()
+
+    // Set up audio event listeners
+    this.uploadAudio.addEventListener('loadedmetadata', () => {
+      const duration = this.uploadAudio.duration
+      console.log('Upload audio metadata loaded - Duration:', duration, 'seconds')
+
+      if (isFinite(duration) && duration > 0) {
+        this.uploadAudioDuration = duration
+        this.updateUploadAudioTime()
+      }
+    })
+
+    this.uploadAudio.addEventListener('timeupdate', () => {
+      this.updateUploadProgress()
+    })
+
+    this.uploadAudio.addEventListener('ended', () => {
+      this.isUploadPlaying = false
+      this.updateUploadPlayButton()
+    })
+
+    this.uploadAudio.addEventListener('error', e => {
+      console.error('Upload audio loading error:', e)
+      this.elements.uploadAudioTime.textContent = '00:00 / Error'
+    })
+
+    // Initialize UI
+    this.elements.uploadProgressFill.style.width = '0%'
+    this.elements.uploadProgressSlider.value = 0
+    this.elements.uploadAudioTime.textContent = '00:00 / --:--'
+    this.isUploadPlaying = false
+    this.updateUploadPlayButton()
+
+    // Show the upload audio player
+    this.elements.uploadAudioPlayer.classList.remove('hidden')
+  }
+
+  hideUploadAudioPlayer() {
+    this.elements.uploadAudioPlayer.classList.add('hidden')
+
+    // Clean up audio
+    if (this.uploadAudio) {
+      this.uploadAudio.pause()
+      URL.revokeObjectURL(this.uploadAudio.src)
+      this.uploadAudio = null
+    }
+
+    this.isUploadPlaying = false
+    this.uploadAudioDuration = 0
+    this.isUploadMuted = false
+    this.uploadPreviousVolume = 1
+  }
+
+  onUploadPlayButtonClick() {
+    if (!this.uploadAudio) {
+      return
+    }
+
+    if (this.isUploadPlaying) {
+      this.uploadAudio.pause()
+      this.isUploadPlaying = false
+    } else {
+      this.uploadAudio.play()
+      this.isUploadPlaying = true
+    }
+
+    this.updateUploadPlayButton()
+  }
+
+  updateUploadPlayButton() {
+    const playIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M8 5v14l11-7z"/>
+    </svg>`
+
+    const pauseIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+    </svg>`
+
+    this.elements.uploadPlayButton.innerHTML = this.isUploadPlaying ? pauseIcon : playIcon
+    this.elements.uploadPlayButton.classList.toggle('playing', this.isUploadPlaying)
+
+    const label = this.isUploadPlaying ? 'Pause uploaded audio' : 'Play uploaded audio'
+    this.elements.uploadPlayButton.setAttribute('aria-label', label)
+  }
+
+  onUploadProgressChange(value) {
+    if (
+      !this.uploadAudio ||
+      !isFinite(this.uploadAudioDuration) ||
+      this.uploadAudioDuration <= 0
+    ) {
+      return
+    }
+
+    const time = (value / 100) * this.uploadAudioDuration
+    this.uploadAudio.currentTime = Math.min(
+      this.uploadAudioDuration,
+      Math.max(0, time)
+    )
+  }
+
+  updateUploadProgress() {
+    if (!this.uploadAudio) {
+      return
+    }
+
+    if (!isFinite(this.uploadAudioDuration) || this.uploadAudioDuration <= 0) {
+      this.elements.uploadProgressFill.style.width = '0%'
+      this.elements.uploadProgressSlider.value = 0
+      this.updateUploadAudioTime()
+      return
+    }
+
+    const progress = (this.uploadAudio.currentTime / this.uploadAudioDuration) * 100
+    this.elements.uploadProgressFill.style.width = `${Math.min(100, Math.max(0, progress))}%`
+    this.elements.uploadProgressSlider.value = Math.min(100, Math.max(0, progress))
+
+    this.updateUploadAudioTime()
+  }
+
+  updateUploadAudioTime() {
+    if (!this.uploadAudio) {
+      return
+    }
+
+    const currentTime = this.uploadAudio.currentTime || 0
+    const duration = this.uploadAudioDuration || 0
+
+    if (!isFinite(duration) || duration <= 0) {
+      this.elements.uploadAudioTime.textContent = `${this.formatTime(currentTime)} / --:--`
+      return
+    }
+
+    const current = this.formatTime(currentTime)
+    const total = this.formatTime(duration)
+
+    this.elements.uploadAudioTime.textContent = `${current} / ${total}`
+  }
+
+  onUploadVolumeChange(value) {
+    if (!this.uploadAudio) {
+      return
+    }
+
+    const volume = value / 100
+    this.uploadAudio.volume = volume
+
+    if (volume === 0) {
+      this.isUploadMuted = true
+    } else {
+      this.isUploadMuted = false
+      this.uploadPreviousVolume = volume
+    }
+
+    this.updateUploadVolumeButton()
+  }
+
+  onUploadVolumeButtonClick() {
+    if (!this.uploadAudio) {
+      return
+    }
+
+    if (this.isUploadMuted) {
+      this.uploadAudio.volume = this.uploadPreviousVolume
+      this.elements.uploadVolumeSlider.value = this.uploadPreviousVolume * 100
+      this.isUploadMuted = false
+    } else {
+      this.uploadPreviousVolume = this.uploadAudio.volume
+      this.uploadAudio.volume = 0
+      this.elements.uploadVolumeSlider.value = 0
+      this.isUploadMuted = true
+    }
+
+    this.updateUploadVolumeButton()
+  }
+
+  updateUploadVolumeButton() {
+    const volumeIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+    </svg>`
+
+    const muteIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+    </svg>`
+
+    this.elements.uploadVolumeButton.innerHTML = this.isUploadMuted ? muteIcon : volumeIcon
   }
 
 

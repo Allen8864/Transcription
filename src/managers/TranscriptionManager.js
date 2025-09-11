@@ -143,8 +143,7 @@ export class TranscriptionManager {
     try {
       const options = {
         language: language || this.currentLanguage,
-        returnTimestamps: true,
-        isRealtime: false
+        returnTimestamps: true
       }
 
       const result = await this.sendWorkerMessage('transcribe', {
@@ -159,40 +158,7 @@ export class TranscriptionManager {
     }
   }
 
-  /**
-   * Transcribe audio chunks for realtime processing
-   */
-  async transcribeRealtime(audioChunks) {
-    if (!this.isModelLoaded) {
-      throw new Error('Model not loaded. Call loadWhisperModel() first.')
-    }
-
-    const results = []
-
-    try {
-      for (let i = 0; i < audioChunks.length; i++) {
-        const options = {
-          language: this.currentLanguage,
-          isRealtime: true,
-          chunkIndex: i,
-          chunkLength: 10, // Shorter chunks for realtime
-          strideLength: 2
-        }
-
-        const result = await this.sendWorkerMessage('transcribe', {
-          audioData: audioChunks[i],
-          options
-        })
-
-        results.push(result)
-      }
-
-      return results
-    } catch (error) {
-      console.error('Realtime transcription failed:', error)
-      throw new Error(`Realtime transcription failed: ${error.message}`)
-    }
-  }
+  // Removed transcribeRealtime method
 
   /**
    * Detect language from audio data

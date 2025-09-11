@@ -62,8 +62,23 @@
 
           <!-- Right Side: Tab Content -->
           <div class="controls-right">
+            <!-- Model Loading Tab Content -->
+            <div id="model-loading-tab" class="tab-content active" role="tabpanel">
+              <div class="model-loading-section">
+                <div class="model-loading-content">
+                  <div class="model-loading-info">
+                    <span class="model-loading-text">Loading Whisper Model...</span>
+                    <span id="model-loading-percentage" class="model-loading-percentage">0%</span>
+                  </div>
+                  <div class="model-progress-bar">
+                    <div id="model-progress-fill" class="model-progress-fill"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Recording Controls -->
-            <div id="record-tab" class="tab-content active" role="tabpanel">
+            <div id="record-tab" class="tab-content" role="tabpanel">
               <div class="recording-section">
                 <!-- Initial Recording Controls -->
                 <div class="recording-controls">
@@ -161,6 +176,37 @@
                     <button id="transcribe-button" class="transcribe-button">
                       Transcribe
                     </button>
+                    
+                    <!-- Upload Audio Player Controls (hidden by default) -->
+                    <div id="upload-audio-player" class="upload-audio-player hidden">
+                      <button id="upload-play-button" class="play-button" aria-label="Play uploaded audio">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </button>
+
+                      <div class="progress-container">
+                        <div class="progress-bar">
+                          <div id="upload-progress-fill" class="progress-fill"></div>
+                          <input id="upload-progress-slider" type="range" min="0" max="100" value="0" class="progress-slider"
+                            aria-label="Audio progress">
+                        </div>
+                      </div>
+
+                      <div class="upload-audio-controls">
+                        <span id="upload-audio-time" class="audio-time">00:00 / 00:00</span>
+                        <div class="volume-control">
+                          <button id="upload-volume-button" class="volume-button" aria-label="Volume">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                              <path
+                                d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                            </svg>
+                          </button>
+                          <input id="upload-volume-slider" type="range" min="0" max="100" value="100" class="volume-slider"
+                            aria-label="Volume control">
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

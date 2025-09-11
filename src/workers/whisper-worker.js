@@ -88,9 +88,8 @@ class WhisperWorker {
         text: result.text || '',
         confidence: this.calculateConfidence(result),
         language: result.language || options.language || 'unknown',
-        isPartial: options.isRealtime || false,
-        timestamp: Date.now(),
-        chunkIndex: options.chunkIndex || 0
+        isPartial: false,
+        timestamp: Date.now()
       }
 
       return transcriptionResult

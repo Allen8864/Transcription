@@ -5,7 +5,7 @@
  * - Microphone access and recording control
  * - Audio file upload and validation
  * - Audio format conversion to WAV
- * - Audio chunking for real-time processing
+ * - Audio chunking for processing
  */
 export class AudioManager {
   constructor() {
@@ -29,18 +29,7 @@ export class AudioManager {
       '.wmv'
     ]
 
-    // Real-time audio processing properties
-    this.audioContext = null
-    this.analyser = null
-    this.processor = null
-    this.audioBuffer = []
-    this.chunkCallbacks = []
-    this.isRealtimeProcessing = false
-    this.chunkSize = 2.5 // seconds
-    this.overlapSize = 0.5 // seconds
-    this.sampleRate = 16000
-    this.bufferSize = 4096
-    this.chunkCounter = 0
+    // Removed real-time audio processing properties
   }
 
   async init() {
@@ -513,7 +502,7 @@ export class AudioManager {
   }
 
   /**
-   * Split audio data into chunks for real-time processing
+   * Split audio data into chunks for processing
    * @param {ArrayBuffer|Float32Array} audioData - The audio data to split
    * @param {number} chunkSize - Chunk size in seconds (default: 2.5)
    * @param {number} sampleRate - Sample rate (default: 16000)
@@ -577,308 +566,30 @@ export class AudioManager {
     }
   }
 
-  /**
-   * Initialize real-time audio processing pipeline
-   * @param {Function} onChunkReady - Callback function called when a chunk is ready for processing
-   * @returns {Promise<void>}
-   */
-  async initRealtimeProcessing(onChunkReady) {
-    try {
-      if (!this.audioStream) {
-        await this.requestMicrophoneAccess()
-      }
+  // Removed initRealtimeProcessing method
 
-      // Create audio context for real-time processing
-      this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
-        sampleRate: this.sampleRate
-      })
+  // Removed startRealtimeProcessing method
 
-      // Create analyser for audio visualization (optional)
-      this.analyser = this.audioContext.createAnalyser()
-      this.analyser.fftSize = 2048
+  // Removed stopRealtimeProcessing method
 
-      // Create script processor for real-time audio data
-      this.processor = this.audioContext.createScriptProcessor(
-        this.bufferSize,
-        1, // mono input
-        1  // mono output
-      )
+  // Removed addChunkCallback method
 
-      // Connect audio stream to processor
-      const source = this.audioContext.createMediaStreamSource(this.audioStream)
-      source.connect(this.analyser)
-      source.connect(this.processor)
-      this.processor.connect(this.audioContext.destination)
+  // Removed removeChunkCallback method
 
-      // Initialize audio buffer and callbacks
-      this.audioBuffer = []
-      this.chunkCallbacks = []
-      this.chunkCounter = 0
+  // Removed processAudioData method
 
-      if (onChunkReady && typeof onChunkReady === 'function') {
-        this.chunkCallbacks.push(onChunkReady)
-      }
+  // Removed processRemainingBuffer method
 
-      // Set up real-time audio processing
-      this.processor.onaudioprocess = (event) => {
-        if (this.isRealtimeProcessing) {
-          this.processAudioData(event.inputBuffer)
-        }
-      }
+  // Removed getBufferStatus method
 
-      console.log('Real-time audio processing initialized:', {
-        sampleRate: this.audioContext.sampleRate,
-        bufferSize: this.bufferSize,
-        chunkSize: this.chunkSize,
-        overlapSize: this.overlapSize
-      })
+  // Removed configureRealtimeProcessing method
 
-    } catch (error) {
-      console.error('Failed to initialize real-time processing:', error)
-      throw new Error(`Real-time processing initialization failed: ${error.message}`)
-    }
-  }
-
-  /**
-   * Start real-time audio processing
-   * @returns {Promise<void>}
-   */
-  async startRealtimeProcessing() {
-    if (!this.audioContext || !this.processor) {
-      throw new Error('Real-time processing not initialized. Call initRealtimeProcessing() first.')
-    }
-
-    if (this.audioContext.state === 'suspended') {
-      await this.audioContext.resume()
-    }
-
-    this.isRealtimeProcessing = true
-    this.audioBuffer = []
-    this.chunkCounter = 0
-
-    console.log('Real-time audio processing started')
-  }
-
-  /**
-   * Stop real-time audio processing
-   */
-  stopRealtimeProcessing() {
-    this.isRealtimeProcessing = false
-    
-    // Process any remaining audio in buffer
-    if (this.audioBuffer.length > 0) {
-      this.processRemainingBuffer()
-    }
-
-    console.log('Real-time audio processing stopped')
-  }
-
-  /**
-   * Add a callback function to be called when audio chunks are ready
-   * @param {Function} callback - Function to call with audio chunk data
-   */
-  addChunkCallback(callback) {
-    if (typeof callback === 'function') {
-      this.chunkCallbacks.push(callback)
-    }
-  }
-
-  /**
-   * Remove a callback function
-   * @param {Function} callback - Function to remove
-   */
-  removeChunkCallback(callback) {
-    const index = this.chunkCallbacks.indexOf(callback)
-    if (index > -1) {
-      this.chunkCallbacks.splice(index, 1)
-    }
-  }
-
-  /**
-   * Process incoming audio data and create chunks
-   * @param {AudioBuffer} inputBuffer - Audio buffer from the processor
-   */
-  processAudioData(inputBuffer) {
-    try {
-      // Get audio data from the first channel (mono)
-      const audioData = inputBuffer.getChannelData(0)
-      
-      // Add new audio data to buffer
-      this.audioBuffer.push(...audioData)
-
-      // Calculate chunk size in samples
-      const chunkSamples = Math.floor(this.chunkSize * this.sampleRate)
-      const overlapSamples = Math.floor(this.overlapSize * this.sampleRate)
-      const stepSize = chunkSamples - overlapSamples
-
-      // Process chunks when we have enough data
-      while (this.audioBuffer.length >= chunkSamples) {
-        // Extract chunk with overlap
-        const chunk = new Float32Array(this.audioBuffer.slice(0, chunkSamples))
-        
-        // Create chunk metadata
-        const chunkData = {
-          id: this.chunkCounter++,
-          audioData: chunk,
-          sampleRate: this.sampleRate,
-          duration: chunk.length / this.sampleRate,
-          timestamp: Date.now(),
-          isRealtime: true
-        }
-
-        // Call all registered callbacks
-        this.chunkCallbacks.forEach(callback => {
-          try {
-            callback(chunkData)
-          } catch (error) {
-            console.error('Error in chunk callback:', error)
-          }
-        })
-
-        // Remove processed samples (with step size to maintain overlap)
-        this.audioBuffer.splice(0, stepSize)
-      }
-
-    } catch (error) {
-      console.error('Error processing audio data:', error)
-    }
-  }
-
-  /**
-   * Process any remaining audio data in the buffer
-   */
-  processRemainingBuffer() {
-    if (this.audioBuffer.length === 0) return
-
-    try {
-      // Process remaining buffer as final chunk
-      const chunk = new Float32Array(this.audioBuffer)
-      
-      const chunkData = {
-        id: this.chunkCounter++,
-        audioData: chunk,
-        sampleRate: this.sampleRate,
-        duration: chunk.length / this.sampleRate,
-        timestamp: Date.now(),
-        isRealtime: true,
-        isFinal: true
-      }
-
-      // Call all registered callbacks
-      this.chunkCallbacks.forEach(callback => {
-        try {
-          callback(chunkData)
-        } catch (error) {
-          console.error('Error in final chunk callback:', error)
-        }
-      })
-
-      // Clear buffer
-      this.audioBuffer = []
-
-      console.log('Processed remaining buffer as final chunk')
-
-    } catch (error) {
-      console.error('Error processing remaining buffer:', error)
-    }
-  }
-
-  /**
-   * Get current audio buffer status for monitoring
-   * @returns {Object} Buffer status information
-   */
-  getBufferStatus() {
-    const bufferDuration = this.audioBuffer.length / this.sampleRate
-    const chunkSamples = Math.floor(this.chunkSize * this.sampleRate)
-    const readyForChunk = this.audioBuffer.length >= chunkSamples
-
-    return {
-      bufferLength: this.audioBuffer.length,
-      bufferDuration: bufferDuration,
-      readyForChunk: readyForChunk,
-      chunkCount: this.chunkCounter,
-      isProcessing: this.isRealtimeProcessing,
-      nextChunkIn: readyForChunk ? 0 : (chunkSamples - this.audioBuffer.length) / this.sampleRate
-    }
-  }
-
-  /**
-   * Configure real-time processing parameters
-   * @param {Object} config - Configuration object
-   * @param {number} config.chunkSize - Chunk size in seconds
-   * @param {number} config.overlapSize - Overlap size in seconds
-   * @param {number} config.bufferSize - Audio buffer size
-   */
-  configureRealtimeProcessing(config = {}) {
-    if (this.isRealtimeProcessing) {
-      console.warn('Cannot change configuration while processing is active')
-      return
-    }
-
-    if (config.chunkSize !== undefined) {
-      this.chunkSize = Math.max(0.5, Math.min(10, config.chunkSize)) // 0.5-10 seconds
-    }
-
-    if (config.overlapSize !== undefined) {
-      this.overlapSize = Math.max(0, Math.min(this.chunkSize * 0.8, config.overlapSize))
-    }
-
-    if (config.bufferSize !== undefined) {
-      // Buffer size must be power of 2
-      const validSizes = [256, 512, 1024, 2048, 4096, 8192, 16384]
-      this.bufferSize = validSizes.find(size => size >= config.bufferSize) || 4096
-    }
-
-    console.log('Real-time processing configured:', {
-      chunkSize: this.chunkSize,
-      overlapSize: this.overlapSize,
-      bufferSize: this.bufferSize
-    })
-  }
-
-  /**
-   * Get audio analysis data for visualization
-   * @returns {Uint8Array|null} Frequency data for visualization
-   */
-  getAudioAnalysisData() {
-    if (!this.analyser) return null
-
-    const dataArray = new Uint8Array(this.analyser.frequencyBinCount)
-    this.analyser.getByteFrequencyData(dataArray)
-    return dataArray
-  }
+  // Removed getAudioAnalysisData method
 
   /**
    * Clean up resources
    */
   cleanup() {
-    // Stop real-time processing
-    this.stopRealtimeProcessing()
-
-    // Clean up audio context and processors
-    if (this.processor) {
-      try {
-        this.processor.disconnect()
-      } catch (error) {
-        console.warn('Error disconnecting processor:', error)
-      }
-      this.processor = null
-    }
-
-    if (this.analyser) {
-      try {
-        this.analyser.disconnect()
-      } catch (error) {
-        console.warn('Error disconnecting analyser:', error)
-      }
-      this.analyser = null
-    }
-
-    if (this.audioContext && this.audioContext.state !== 'closed') {
-      this.audioContext.close()
-      this.audioContext = null
-    }
-
     // Clean up existing recording resources
     if (this.isRecording && this.mediaRecorder) {
       this.mediaRecorder.stop()
@@ -894,12 +605,6 @@ export class AudioManager {
     this.audioChunks = []
     this.isRecording = false
     this.recordingStartTime = null
-
-    // Clear real-time processing data
-    this.audioBuffer = []
-    this.chunkCallbacks = []
-    this.chunkCounter = 0
-    this.isRealtimeProcessing = false
 
     console.log('AudioManager cleaned up')
   }
