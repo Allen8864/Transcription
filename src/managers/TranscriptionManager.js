@@ -61,10 +61,20 @@ export class TranscriptionManager {
     const { id, type, data, error } = message
 
     if (type === 'progress') {
-      // Handle progress updates
-      this.loadingProgress = data.progress
-      if (this.onProgressCallback) {
-        this.onProgressCallback(data.progress)
+      // Handle different types of progress updates
+      if (data.type === 'transcription_update') {
+        // Real-time transcription update
+        if (this.onTranscriptionUpdateCallback) {
+          this.onTranscriptionUpdateCallback(data.result)
+        }
+        return
+      } else if (data.progress !== undefined) {
+        // Model loading progress
+        this.loadingProgress = data.progress
+        if (this.onProgressCallback) {
+          this.onProgressCallback(data.progress)
+        }
+        return
       }
       return
     }
@@ -133,22 +143,49 @@ export class TranscriptionManager {
   }
 
   /**
-   * Transcribe audio data
+   * Transcribe preprocessed audio data (Float32Array)
+   * @param {Float32Array} audioData - Preprocessed audio data from AudioManager
+   * @param {string} language - Language code (null for auto-detection)
+   * @returns {Promise<Object>} Transcription result
    */
   async transcribeAudio(audioData, language = null) {
     if (!this.isModelLoaded) {
       throw new Error('Model not loaded. Call loadWhisperModel() first.')
     }
 
+    if (!(audioData instanceof Float32Array)) {
+      throw new Error('Audio data must be a Float32Array. Use AudioManager.preprocessAudioForWhisper() first.')
+    }
+
     try {
+      // Determine language for transcription
+      const transcriptionLanguage = (language === 'auto' || language === null) ? null : language
+
+      console.log('Starting transcription:', {
+        audioDataLength: audioData.length,
+        duration: audioData.length / 16000, // Assuming 16kHz sample rate
+        language: transcriptionLanguage
+      })
+
       const options = {
-        language: language || this.currentLanguage,
-        returnTimestamps: true
+        language: transcriptionLanguage,
+        returnTimestamps: true,
+        chunkLength: 30, // 30 seconds chunks as per whisper-web
+        strideLength: 5  // 5 seconds stride
       }
 
+      // Convert Float32Array to ArrayBuffer for worker message
+      const audioBuffer = audioData.buffer
+
       const result = await this.sendWorkerMessage('transcribe', {
-        audioData,
+        audioData: audioBuffer,
         options
+      })
+
+      console.log('Transcription completed:', {
+        textLength: result.text?.length || 0,
+        language: result.language,
+        confidence: result.confidence
       })
 
       return result
@@ -158,37 +195,7 @@ export class TranscriptionManager {
     }
   }
 
-  // Removed transcribeRealtime method
 
-  /**
-   * Detect language from audio data
-   */
-  async detectLanguage(audioData) {
-    if (!this.isModelLoaded) {
-      throw new Error('Model not loaded. Call loadWhisperModel() first.')
-    }
-
-    try {
-      // Use a small sample for language detection
-      const sampleSize = Math.min(audioData.byteLength, 16000 * 5) // 5 seconds max
-      const sampleData = audioData.slice(0, sampleSize)
-
-      const options = {
-        language: null, // Auto-detect
-        returnTimestamps: false
-      }
-
-      const result = await this.sendWorkerMessage('transcribe', {
-        audioData: sampleData,
-        options
-      })
-
-      return result.language || 'unknown'
-    } catch (error) {
-      console.error('Language detection failed:', error)
-      return 'unknown'
-    }
-  }
 
   /**
    * Set the transcription language
@@ -220,6 +227,13 @@ export class TranscriptionManager {
   }
 
   /**
+   * Set transcription update callback for real-time updates
+   */
+  setTranscriptionUpdateCallback(callback) {
+    this.onTranscriptionUpdateCallback = callback
+  }
+
+  /**
    * Set error callback
    */
   setErrorCallback(callback) {
@@ -239,53 +253,25 @@ export class TranscriptionManager {
     this.loadingProgress = 0
   }
 
-  // Temporary implementation for file transcription (Task 8)
-  // This will be replaced with actual Whisper implementation in Task 5-6
-  async transcribeFile(file, language = 'auto') {
-    console.log('Starting file transcription:', {
-      fileName: file.name,
-      fileSize: file.size,
-      language: language
-    })
-
-    // Simulate processing time based on file size
-    const processingTime = Math.min(
-      Math.max((file.size / 1000000) * 2000, 1000),
-      10000
-    )
-
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        try {
-          // Mock transcription result
-          const mockResult = {
-            text: `[Mock Transcription]\n\nThis is a simulated transcription result for the file "${file.name}".\n\nThe actual transcription will be implemented when the WhisperCPP model is integrated in tasks 5-6.\n\nFile details:\n- Size: ${this.formatFileSize(file.size)}\n- Language: ${language}\n- Processing completed successfully.`,
-            confidence: 0.95,
-            language: language === 'auto' ? 'en' : language,
-            isPartial: false,
-            timestamp: Date.now()
-          }
-
-          console.log('File transcription completed (mock):', mockResult)
-          resolve(mockResult)
-        } catch (error) {
-          console.error('Mock transcription error:', error)
-          reject(new Error(`Transcription failed: ${error.message}`))
-        }
-      }, processingTime)
-    })
-  }
-
-  // Helper method for file size formatting
-  formatFileSize(bytes) {
-    if (bytes === 0) {
-      return '0 Bytes'
+  /**
+   * Transcribe audio file (simplified whisper-web approach)
+   * @param {File|Blob} audioInput - Audio file or blob
+   * @param {AudioManager} audioManager - AudioManager instance
+   * @param {string} language - Language code
+   * @returns {Promise<Object>} Transcription result
+   */
+  async transcribeFile(audioInput, audioManager, language = null) {
+    try {
+      console.log('Starting file transcription')
+      
+      // Process audio using AudioManager
+      const audioData = await audioManager.processAudioForWhisper(audioInput)
+      
+      // Transcribe processed audio
+      return await this.transcribeAudio(audioData, language)
+    } catch (error) {
+      console.error('File transcription failed:', error)
+      throw new Error(`File transcription failed: ${error.message}`)
     }
-
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 }

@@ -739,6 +739,178 @@ body {
     overflow-y: auto;
 }
 
+/* Simplified transcript styling */
+.transcript-chunk {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.transcript-chunk:last-child {
+    border-bottom: none;
+}
+
+.transcript-timestamp {
+    flex-shrink: 0;
+    width: 70px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    color: var(--accent-primary);
+    font-weight: 500;
+    text-align: right;
+    margin-right: var(--spacing-md);
+    padding-top: 2px;
+}
+
+.transcript-text {
+    flex: 1;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+
+/* Export buttons */
+.export-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-lg);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border);
+}
+
+.export-button {
+    background-color: var(--success);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.export-button:hover {
+    background-color: var(--success-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(143, 188, 143, 0.3);
+}
+
+.export-button:active {
+    transform: translateY(0);
+}
+
+.export-txt {
+    background-color: var(--accent-primary);
+}
+
+.export-txt:hover {
+    background-color: var(--accent-secondary);
+}
+
+.export-json {
+    background-color: var(--success);
+}
+
+.export-json:hover {
+    background-color: var(--success-hover);
+}
+
+/* Real-time transcription styles */
+.transcription-in-progress {
+    position: relative;
+}
+
+.transcription-in-progress::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+    animation: transcription-progress 2s ease-in-out infinite;
+}
+
+@keyframes transcription-progress {
+    0% {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+.partial-transcription {
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm) 0;
+}
+
+.partial-chunk {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-sm) 0;
+}
+
+.partial-timestamp {
+    flex-shrink: 0;
+    width: 70px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    color: var(--accent-primary);
+    font-weight: 500;
+    text-align: right;
+    margin-right: var(--spacing-md);
+    padding-top: 2px;
+}
+
+.partial-text {
+    flex: 1;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 0.8;
+        transform: translateY(0);
+    }
+}
+
+
+/* Smooth scroll behavior */
+.transcription-result {
+    scroll-behavior: smooth;
+}
+
 .placeholder-text {
     color: var(--text-muted);
     font-style: italic;
@@ -938,6 +1110,50 @@ body {
         display: none;
         /* Hide volume control on mobile */
     }
+
+    /* Mobile transcript styling */
+    .transcript-chunk {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+        padding: var(--spacing-xs) 0;
+    }
+
+    .transcript-timestamp {
+        width: auto;
+        text-align: left;
+        margin-right: 0;
+        margin-bottom: var(--spacing-xs);
+        font-size: 0.7rem;
+    }
+
+    .transcript-text {
+        font-size: 0.85rem;
+        line-height: 1.4;
+    }
+
+    .partial-chunk {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+        padding: var(--spacing-xs) 0;
+    }
+
+    .partial-timestamp {
+        width: auto;
+        text-align: left;
+        margin-right: 0;
+        font-size: 0.9rem;
+    }
+
+    .export-buttons {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+    }
+
+    .export-button {
+        width: 100%;
+        justify-content: center;
+    }
+
 }
 
 @media (max-width: 480px) {

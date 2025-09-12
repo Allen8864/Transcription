@@ -75,10 +75,12 @@ const results = await manager.transcribeRealtime(audioChunks)
 results.forEach(result => console.log(result.text))
 ```
 
-#### Language Detection
+#### Automatic Language Detection
 ```javascript
-const language = await manager.detectLanguage(audioBuffer)
-console.log('Detected language:', language)
+// Auto-detect language during transcription
+const result = await manager.transcribeAudio(audioData, 'auto')
+console.log('Detected language:', result.language)
+console.log('Transcription:', result.text)
 ```
 
 #### Configuration

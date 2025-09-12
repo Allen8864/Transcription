@@ -41,6 +41,13 @@ export class UIController {
   // 设置TranscriptionManager引用
   setTranscriptionManager(transcriptionManager) {
     this.transcriptionManager = transcriptionManager
+    
+    // 设置实时转录更新回调
+    if (this.transcriptionManager) {
+      this.transcriptionManager.setTranscriptionUpdateCallback((partialResult) => {
+        this.handleRealtimeTranscriptionUpdate(partialResult)
+      })
+    }
   }
 
   init() {
@@ -303,6 +310,9 @@ export class UIController {
 
     try {
       if (!this.isRecording) {
+        // 清空转录结果
+        this.clearTranscriptionResults()
+        
         // 隐藏音频播放器（如果存在）
         this.hideAudioPlayer()
 
@@ -393,28 +403,21 @@ export class UIController {
 
     try {
       console.log('Starting recording transcription...')
-      
-      // 显示转录状态
-      this.showTranscriptionStatus('正在转录录音...')
-      
+
       // 获取选择的语言
       const language = this.getSelectedLanguage()
       
-      // 开始转录
-      const result = await this.transcriptionManager.transcribeFile(audioBlob, language)
+      // 开始转录 (simplified whisper-web approach)
+      const result = await this.transcriptionManager.transcribeFile(audioBlob, this.audioManager, language)
       
       // 显示转录结果
       this.displayTranscriptionResult(result.text, false)
       this.elements.copyButton.classList.remove('hidden')
-      
-      // 隐藏转录状态
-      this.hideTranscriptionStatus()
-      
+
       console.log('Recording transcription completed')
     } catch (error) {
       console.error('Recording transcription error:', error)
       this.showErrorMessage(`转录失败: ${error.message}`)
-      this.hideTranscriptionStatus()
     }
   }
 
@@ -432,26 +435,14 @@ export class UIController {
     }
 
     try {
+      // 清空转录结果
+      this.clearTranscriptionResults()
+      
       // Show loading state
       this.showLoadingState()
       this.elements.transcribeButton.disabled = true
 
       let fileToTranscribe = this.currentUploadedFile
-
-      // If it's a video file, extract audio first
-      if (this.isVideoFile) {
-        this.elements.transcribeButton.textContent = 'Extracting Audio...'
-        this.elements.loadingText.textContent = 'Extracting audio from video...'
-
-        console.log('Extracting audio from video file...')
-        fileToTranscribe = await this.audioManager.extractAudioFromVideo(
-          this.currentUploadedFile
-        )
-        console.log(
-          'Audio extraction completed, blob size:',
-          fileToTranscribe.size
-        )
-      }
 
       // Update loading text for transcription
       this.elements.transcribeButton.textContent = 'Transcribing...'
@@ -460,9 +451,10 @@ export class UIController {
       // Get selected language
       const language = this.getSelectedLanguage()
 
-      // Start transcription
+      // Start transcription (simplified whisper-web approach)
       const result = await this.transcriptionManager.transcribeFile(
-        fileToTranscribe,
+        this.currentUploadedFile,
+        this.audioManager,
         language
       )
 
@@ -547,9 +539,32 @@ export class UIController {
     this.elements.recordingStatus.classList.remove('hidden')
   }
 
-  displayTranscriptionResult(text, isPartial = false) {
-    if (!text) {
-      console.warn('No text provided for transcription result')
+  displayTranscriptionResult(transcriptionData, isPartial = false) {
+    // Import formatAudioTimestamp utility
+    import('../utils/AudioUtils.js').then(({ formatAudioTimestamp }) => {
+      this._displayTranscriptionResultWithUtils(transcriptionData, isPartial, formatAudioTimestamp)
+    }).catch(() => {
+      // Fallback without timestamp formatting
+      this._displayTranscriptionResultWithUtils(transcriptionData, isPartial, null)
+    })
+  }
+
+  _displayTranscriptionResultWithUtils(transcriptionData, isPartial, formatAudioTimestamp) {
+    // Handle both string and object input for backward compatibility
+    let text, chunks
+    if (typeof transcriptionData === 'string') {
+      text = transcriptionData
+      chunks = null
+    } else if (transcriptionData && typeof transcriptionData === 'object') {
+      text = transcriptionData.text || ''
+      chunks = transcriptionData.chunks || null
+    } else {
+      console.warn('No transcription data provided')
+      return
+    }
+
+    if (!text && !chunks) {
+      console.warn('No text or chunks provided for transcription result')
       return
     }
 
@@ -562,43 +577,328 @@ export class UIController {
     }
 
     if (isPartial) {
-      // For partial results, append or update the last line
-      const existingText = resultElement.textContent || ''
-      const lines = existingText.split('\n')
-
-      if (lines.length > 0 && lines[lines.length - 1].startsWith('[Partial]')) {
-        // Update the last partial line
-        lines[lines.length - 1] = `[Partial] ${text}`
-      } else {
-        // Add new partial line
-        lines.push(`[Partial] ${text}`)
-      }
-
-      resultElement.textContent = lines.join('\n')
+      // For partial results, show enhanced real-time display
+      this.displayPartialTranscription(resultElement, text, chunks, formatAudioTimestamp)
     } else {
-      // For final results, replace any partial text with final text
-      const existingText = resultElement.textContent || ''
-      const lines = existingText
-        .split('\n')
-        .filter(line => !line.startsWith('[Partial]'))
+      // Clear existing content including partial results
+      resultElement.innerHTML = ''
+      
+      // Remove transcription in progress indicator
+      resultElement.classList.remove('transcription-in-progress')
+      clearTimeout(this.transcriptionProgressTimeout)
 
-      if (lines.length > 0 && lines[0] !== '') {
-        lines.push('') // Add empty line separator
+      if (chunks && chunks.length > 0 && formatAudioTimestamp) {
+        // Display with timestamps and enhanced styling
+        chunks.forEach((chunk, index) => {
+          const chunkElement = document.createElement('div')
+          chunkElement.className = 'transcript-chunk'
+          chunkElement.setAttribute('data-chunk-index', index)
+
+          const timestampElement = document.createElement('div')
+          timestampElement.className = 'transcript-timestamp'
+          
+          if (chunk.timestamp && chunk.timestamp[0] !== undefined) {
+            timestampElement.textContent = formatAudioTimestamp(chunk.timestamp[0])
+          } else {
+            timestampElement.textContent = '--:--'
+          }
+
+          const textElement = document.createElement('div')
+          textElement.className = 'transcript-text'
+          textElement.textContent = chunk.text.trim()
+
+          chunkElement.appendChild(timestampElement)
+          chunkElement.appendChild(textElement)
+          resultElement.appendChild(chunkElement)
+        })
+
+        // Add export buttons
+        this.addExportButtons(resultElement, { text, chunks })
+      } else {
+        // Skip simple text display, only use chunk-based display
+        console.warn('No chunks available for transcription display')
       }
-      lines.push(text)
-
-      resultElement.textContent = lines.join('\n')
     }
 
-    // Scroll to bottom
-    resultElement.scrollTop = resultElement.scrollHeight
+    // Scroll to bottom with smooth behavior
+    if (resultElement.scrollHeight > resultElement.clientHeight) {
+      const diff = Math.abs(
+        resultElement.offsetHeight + resultElement.scrollTop - resultElement.scrollHeight
+      )
+      
+      if (diff <= 64) {
+        // We're close enough to the bottom, so scroll to the bottom
+        resultElement.scrollTop = resultElement.scrollHeight
+      }
+    }
 
     // Show copy button for final results
     if (!isPartial) {
       this.elements.copyButton.classList.remove('hidden')
     }
 
-    console.log('Transcription result displayed:', { text, isPartial })
+    console.log('Transcription result displayed:', { 
+      hasText: !!text, 
+      hasChunks: !!(chunks && chunks.length), 
+      isPartial 
+    })
+  }
+
+  addExportButtons(resultElement, transcriptionData) {
+    const existingButtons = resultElement.querySelector('.export-buttons')
+    if (existingButtons) {
+      existingButtons.remove()
+    }
+
+    const exportContainer = document.createElement('div')
+    exportContainer.className = 'export-buttons'
+
+    // Export TXT button
+    const exportTxtButton = document.createElement('button')
+    exportTxtButton.className = 'export-button export-txt'
+    exportTxtButton.textContent = 'Export TXT'
+    exportTxtButton.addEventListener('click', () => this.exportTranscriptAsTXT(transcriptionData))
+
+    // Export JSON button  
+    const exportJsonButton = document.createElement('button')
+    exportJsonButton.className = 'export-button export-json'
+    exportJsonButton.textContent = 'Export JSON'
+    exportJsonButton.addEventListener('click', () => this.exportTranscriptAsJSON(transcriptionData))
+
+    exportContainer.appendChild(exportTxtButton)
+    exportContainer.appendChild(exportJsonButton)
+    resultElement.appendChild(exportContainer)
+  }
+
+  exportTranscriptAsTXT(transcriptionData) {
+    const text = transcriptionData.text || transcriptionData.chunks?.map(chunk => chunk.text).join('').trim() || ''
+    
+    if (!text) {
+      this.showErrorMessage('No transcript content to export')
+      return
+    }
+
+    const blob = new Blob([text], { type: 'text/plain' })
+    this.downloadBlob(blob, 'transcript.txt')
+  }
+
+  exportTranscriptAsJSON(transcriptionData) {
+    const chunks = transcriptionData.chunks || []
+    
+    if (chunks.length === 0) {
+      this.showErrorMessage('No transcript chunks to export')
+      return
+    }
+
+    let jsonData = JSON.stringify(chunks, null, 2)
+    
+    // Post-process the JSON to make it more readable
+    const regex = /(    "timestamp": )\[\s+(\S+)\s+(\S+)\s+\]/gm
+    jsonData = jsonData.replace(regex, '$1[$2 $3]')
+
+    const blob = new Blob([jsonData], { type: 'application/json' })
+    this.downloadBlob(blob, 'transcript.json')
+  }
+
+  downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+  /**
+   * Handle real-time transcription updates
+   * @param {Object} partialResult - Partial transcription result with text and chunks
+   */
+  handleRealtimeTranscriptionUpdate(partialResult) {
+    if (!partialResult) {
+      return
+    }
+
+    console.log('Real-time transcription update:', partialResult)
+
+    // Store the latest partial result
+    this.latestPartialResult = partialResult
+
+    // Debounce the UI updates to avoid overwhelming the DOM
+    clearTimeout(this.realtimeUpdateTimeout)
+    this.realtimeUpdateTimeout = setTimeout(() => {
+      this.updatePartialTranscriptionUI(this.latestPartialResult)
+    }, 50) // Update every 50ms at most
+
+    // Show a visual indicator that transcription is in progress
+    this.showTranscriptionInProgress()
+  }
+
+  /**
+   * Update the UI with the latest partial transcription result
+   * @param {Object} partialResult - The partial result to display
+   */
+  updatePartialTranscriptionUI(partialResult) {
+    if (!partialResult) {
+      return
+    }
+
+    // Update the results display with partial results
+    this.displayTranscriptionResult(partialResult, true)
+  }
+
+  /**
+   * Show visual indicator that transcription is in progress
+   */
+  showTranscriptionInProgress() {
+    const resultElement = this.elements.transcriptionResult
+    
+    // Add a subtle indicator class
+    resultElement.classList.add('transcription-in-progress')
+    
+    // Remove the indicator after a short delay if no new updates come
+    clearTimeout(this.transcriptionProgressTimeout)
+    this.transcriptionProgressTimeout = setTimeout(() => {
+      resultElement.classList.remove('transcription-in-progress')
+    }, 1000)
+  }
+
+  /**
+   * Clear transcription results
+   */
+  clearTranscriptionResults() {
+    const resultElement = this.elements.transcriptionResult
+    
+    // Clear all content
+    resultElement.innerHTML = ''
+    
+    // Add placeholder text back
+    const placeholderElement = document.createElement('p')
+    placeholderElement.className = 'placeholder-text'
+    placeholderElement.textContent = this.i18n 
+      ? this.i18n.t('resultsPlaceholder') 
+      : 'Transcription results will appear here...'
+    resultElement.appendChild(placeholderElement)
+    
+    // Hide copy button
+    this.elements.copyButton.classList.add('hidden')
+    
+    // Remove any progress indicators
+    resultElement.classList.remove('transcription-in-progress')
+    clearTimeout(this.transcriptionProgressTimeout)
+    clearTimeout(this.realtimeUpdateTimeout)
+    
+    console.log('Transcription results cleared')
+  }
+
+  /**
+   * Display partial transcription results with real-time updates
+   * @param {HTMLElement} resultElement - The result container element
+   * @param {string} text - The partial text
+   * @param {Array} chunks - The partial chunks array
+   * @param {Function} formatAudioTimestamp - Timestamp formatting function
+   */
+  displayPartialTranscription(resultElement, text, chunks, formatAudioTimestamp) {
+    // Find or create the partial results container
+    let partialContainer = resultElement.querySelector('.partial-transcription')
+    
+    if (!partialContainer) {
+      partialContainer = document.createElement('div')
+      partialContainer.className = 'partial-transcription'
+      resultElement.appendChild(partialContainer)
+    }
+
+    // Store previous content hash to avoid unnecessary re-renders
+    const currentContentHash = this.hashContent(text, chunks)
+    if (partialContainer.dataset.contentHash === currentContentHash) {
+      return // No change, skip update
+    }
+    partialContainer.dataset.contentHash = currentContentHash
+
+    // Clear previous partial content
+    partialContainer.innerHTML = ''
+
+    if (chunks && chunks.length > 0 && formatAudioTimestamp) {
+      // Display chunks with timestamps - simple layout
+      chunks.forEach((chunk, index) => {
+        const chunkElement = document.createElement('div')
+        chunkElement.className = 'partial-chunk'
+        chunkElement.setAttribute('data-chunk-index', index)
+
+        const timestampElement = document.createElement('div')
+        timestampElement.className = 'partial-timestamp'
+        
+        if (chunk.timestamp && chunk.timestamp[0] !== undefined) {
+          timestampElement.textContent = formatAudioTimestamp(chunk.timestamp[0])
+        } else {
+          timestampElement.textContent = '--:--'
+        }
+
+        const textElement = document.createElement('div')
+        textElement.className = 'partial-text'
+        textElement.textContent = chunk.text.trim()
+
+        chunkElement.appendChild(timestampElement)
+        chunkElement.appendChild(textElement)
+        partialContainer.appendChild(chunkElement)
+      })
+    } else if (text) {
+      // Display text as chunks if available, otherwise skip simple display
+      console.warn('No chunks available for partial transcription display')
+    }
+
+
+    // Auto-scroll to bottom
+    this.smoothScrollToBottom(resultElement)
+  }
+
+  /**
+   * Create a simple hash of content to detect changes
+   * @param {string} text - The text content
+   * @param {Array} chunks - The chunks array
+   * @returns {string} Content hash
+   */
+  hashContent(text, chunks) {
+    const content = chunks ? JSON.stringify(chunks) : text || ''
+    // Handle Unicode characters by encoding them first
+    try {
+      return btoa(encodeURIComponent(content)).substring(0, 16) // Simple hash
+    } catch (error) {
+      // Fallback to a simple hash if encoding fails
+      return this.simpleHash(content).substring(0, 16)
+    }
+  }
+
+  simpleHash(str) {
+    let hash = 0
+    if (str.length === 0) return hash.toString()
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString()
+  }
+
+
+  /**
+   * Smooth scroll to bottom of element
+   * @param {HTMLElement} element - The element to scroll
+   */
+  smoothScrollToBottom(element) {
+    if (element.scrollHeight > element.clientHeight) {
+      const diff = Math.abs(
+        element.offsetHeight + element.scrollTop - element.scrollHeight
+      )
+      
+      if (diff <= 100) {
+        element.scrollTo({
+          top: element.scrollHeight,
+          behavior: 'smooth'
+        })
+      }
+    }
   }
 
   // Removed updateRealtimeText method (no longer needed without real-time transcription)
@@ -645,44 +945,6 @@ export class UIController {
     }, 3000)
   }
 
-  /**
-   * 显示转录状态
-   * @param {string} message - 状态消息
-   */
-  showTranscriptionStatus(message) {
-    // 移除现有的状态提示
-    this.hideTranscriptionStatus()
-    
-    // 创建状态提示
-    const statusDiv = document.createElement('div')
-    statusDiv.className = 'transcription-status'
-    statusDiv.textContent = message
-    statusDiv.style.cssText = `
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #007bff;
-      color: white;
-      padding: 12px 20px;
-      border-radius: 4px;
-      z-index: 1000;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      font-size: 14px;
-    `
-    
-    document.body.appendChild(statusDiv)
-  }
-
-  /**
-   * 隐藏转录状态
-   */
-  hideTranscriptionStatus() {
-    const existingStatus = document.querySelector('.transcription-status')
-    if (existingStatus && existingStatus.parentNode) {
-      existingStatus.parentNode.removeChild(existingStatus)
-    }
-  }
 
   copyTranscriptionResult() {
     const text = this.elements.transcriptionResult.textContent

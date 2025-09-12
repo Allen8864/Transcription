@@ -23,7 +23,6 @@ describe('WhisperCPP Basic Integration', () => {
       expect(typeof manager.loadWhisperModel).toBe('function')
       expect(typeof manager.transcribeAudio).toBe('function')
       expect(typeof manager.transcribeRealtime).toBe('function')
-      expect(typeof manager.detectLanguage).toBe('function')
       expect(typeof manager.setLanguage).toBe('function')
       expect(typeof manager.isReady).toBe('function')
       expect(typeof manager.destroy).toBe('function')
@@ -99,9 +98,6 @@ describe('WhisperCPP Basic Integration', () => {
         manager.transcribeRealtime([new ArrayBuffer(512)])
       ).rejects.toThrow('Model not loaded')
       
-      await expect(
-        manager.detectLanguage(new ArrayBuffer(1024))
-      ).rejects.toThrow('Model not loaded')
     })
   })
 

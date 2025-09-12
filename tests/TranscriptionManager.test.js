@@ -272,37 +272,31 @@ describe('TranscriptionManager - WhisperCPP Integration', () => {
       await manager.loadWhisperModel()
     })
 
-    it('should detect language from audio data', async () => {
-      const mockAudioData = new ArrayBuffer(1024)
-      
-      const language = await manager.detectLanguage(mockAudioData)
-
-      expect(language).toBe('en')
-    })
-
-    it('should handle language detection errors gracefully', async () => {
-      // Mock worker to return error for language detection
-      const originalHandler = manager.worker.handleMessage
-      manager.worker.handleMessage = (data) => {
-        if (data.type === 'transcribe') {
-          setTimeout(() => {
-            manager.worker.onmessage({
-              data: {
-                id: data.id,
-                type: 'error',
-                error: 'Language detection failed'
-              }
-            })
-          }, 10)
-        } else {
-          originalHandler.call(manager.worker, data)
-        }
+    it('should handle auto language detection in transcription', async () => {
+      const mockAudioData = new Float32Array(1024)
+      const mockResult = {
+        text: 'Hello world',
+        language: 'en',
+        confidence: 0.95
       }
 
-      const mockAudioData = new ArrayBuffer(1024)
-      const language = await manager.detectLanguage(mockAudioData)
+      // Mock successful transcription with auto language detection
+      const originalHandler = manager.worker.onmessage
+      manager.worker.onmessage = (e) => {
+        const { id } = e.data
+        manager.worker.onmessage({
+          data: {
+            id,
+            type: 'success',
+            data: mockResult
+          }
+        })
+      }
 
-      expect(language).toBe('unknown')
+      const result = await manager.transcribeAudio(mockAudioData, 'auto')
+
+      expect(result.language).toBe('en')
+      expect(result.text).toBe('Hello world')
     })
   })
 

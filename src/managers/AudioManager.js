@@ -1,11 +1,12 @@
+import { webmFixDuration } from '../utils/BlobFix.js'
+
 /**
- * AudioManager - Handles audio recording, file upload, and audio processing
- *
+ * AudioManager - Simplified audio processing following whisper-web approach
+ * 
  * This class manages:
- * - Microphone access and recording control
- * - Audio file upload and validation
- * - Audio format conversion to WAV
- * - Audio chunking for processing
+ * - Microphone recording
+ * - Audio file upload
+ * - Audio preprocessing for Whisper (16kHz, mono, Float32Array)
  */
 export class AudioManager {
   constructor() {
@@ -14,22 +15,13 @@ export class AudioManager {
     this.audioChunks = []
     this.isRecording = false
     this.recordingStartTime = null
+    
+    // Supported formats (following whisper-web - supports video too)
     this.supportedFormats = ['audio/webm', 'audio/mp4', 'audio/wav']
     this.supportedFileTypes = [
-      '.mp3',
-      '.wav',
-      '.m4a',
-      '.ogg',
-      '.webm',
-      '.mp4',
-      '.avi',
-      '.mov',
-      '.mkv',
-      '.flv',
-      '.wmv'
+      '.mp3', '.wav', '.m4a', '.ogg', '.webm', '.flac',
+      '.mp4', '.avi', '.mov', '.mkv', '.wmv'  // Video formats
     ]
-
-    // Removed real-time audio processing properties
   }
 
   async init() {
@@ -152,7 +144,7 @@ export class AudioManager {
     }
 
     return new Promise((resolve, reject) => {
-      this.mediaRecorder.onstop = () => {
+      this.mediaRecorder.onstop = async () => {
         try {
           console.log(
             'MediaRecorder stopped, chunks count:',
@@ -160,17 +152,32 @@ export class AudioManager {
           )
           console.log('MediaRecorder mimeType:', this.mediaRecorder.mimeType)
 
-          const audioBlob = new Blob(this.audioChunks, {
+          let audioBlob = new Blob(this.audioChunks, {
             type: this.mediaRecorder.mimeType
           })
 
           this.isRecording = false
+          
+          // Fix WEBM duration metadata if needed
+          const recordingDuration = this.getRecordingDuration()
+          if (recordingDuration > 0 && audioBlob.type.includes('webm')) {
+            try {
+              console.log('Fixing WEBM duration metadata...', recordingDuration)
+              audioBlob = await webmFixDuration(audioBlob, recordingDuration * 1000) // Convert to milliseconds
+              console.log('WEBM duration fixed successfully')
+            } catch (error) {
+              console.warn('Failed to fix WEBM duration, using original blob:', error)
+              // Continue with original blob
+            }
+          }
+          
           this.recordingStartTime = null
 
           console.log('Recording completed:', {
             blobSize: audioBlob.size,
             blobType: audioBlob.type,
-            chunksCount: this.audioChunks.length
+            chunksCount: this.audioChunks.length,
+            duration: recordingDuration
           })
 
           // Note: We don't clean up the stream here to allow for immediate re-recording
@@ -267,114 +274,9 @@ export class AudioManager {
     }
   }
 
-  /**
-   * Extract audio from video file using HTML5 video element
-   * @param {File} videoFile - The video file
-   * @returns {Promise<Blob>} Audio blob extracted from video
-   */
-  async extractAudioFromVideo(videoFile) {
-    return new Promise((resolve, reject) => {
-      try {
-        const video = document.createElement('video')
-        // Canvas might be needed for future video processing
-        // const canvas = document.createElement('canvas')
-        const audioContext = new (window.AudioContext ||
-          window.webkitAudioContext)()
-
-        video.crossOrigin = 'anonymous'
-        video.muted = true // Prevent audio playback during processing
-
-        const url = URL.createObjectURL(videoFile)
-
-        video.addEventListener('loadedmetadata', async () => {
-          try {
-            console.log('Video metadata loaded:', {
-              duration: video.duration,
-              videoWidth: video.videoWidth,
-              videoHeight: video.videoHeight
-            })
-
-            // Create MediaElementSource to capture audio
-            const source = audioContext.createMediaElementSource(video)
-            const destination = audioContext.createMediaStreamDestination()
-            source.connect(destination)
-
-            // Set up MediaRecorder to capture the audio stream
-            const mediaRecorder = new MediaRecorder(destination.stream, {
-              mimeType: 'audio/webm;codecs=opus'
-            })
-
-            const audioChunks = []
-
-            mediaRecorder.ondataavailable = event => {
-              if (event.data.size > 0) {
-                audioChunks.push(event.data)
-              }
-            }
-
-            mediaRecorder.onstop = () => {
-              const audioBlob = new Blob(audioChunks, { type: 'audio/webm' })
-              URL.revokeObjectURL(url)
-
-              console.log('Audio extraction completed:', {
-                originalSize: videoFile.size,
-                extractedSize: audioBlob.size,
-                duration: video.duration
-              })
-
-              resolve(audioBlob)
-            }
-
-            mediaRecorder.onerror = error => {
-              console.error(
-                'MediaRecorder error during audio extraction:',
-                error
-              )
-              URL.revokeObjectURL(url)
-              reject(new Error(`Audio extraction failed: ${error.message}`))
-            }
-
-            // Start recording and play video
-            mediaRecorder.start()
-
-            // Play video to extract audio (muted)
-            video.currentTime = 0
-            await video.play()
-
-            // Stop recording when video ends
-            video.addEventListener('ended', () => {
-              mediaRecorder.stop()
-            })
-          } catch (error) {
-            console.error('Error during audio extraction setup:', error)
-            URL.revokeObjectURL(url)
-            reject(new Error(`Failed to extract audio: ${error.message}`))
-          }
-        })
-
-        video.addEventListener('error', error => {
-          console.error('Video loading error:', error)
-          URL.revokeObjectURL(url)
-          reject(new Error('Failed to load video file'))
-        })
-
-        // Set timeout to prevent hanging
-        setTimeout(() => {
-          URL.revokeObjectURL(url)
-          reject(new Error('Audio extraction timeout'))
-        }, 60000) // 60 second timeout
-
-        video.src = url
-        video.load()
-      } catch (error) {
-        console.error('Audio extraction error:', error)
-        reject(new Error(`Audio extraction failed: ${error.message}`))
-      }
-    })
-  }
 
   /**
-   * Validate if the file is a supported audio or video format
+   * Validate if the file is a supported audio/video format (following whisper-web)
    * @param {File} file - The file to validate
    * @returns {{isValid: boolean, error?: string, isVideo?: boolean}}
    */
@@ -399,16 +301,8 @@ export class AudioManager {
       }
     }
 
-    // Determine if it's a video file
-    const videoExtensions = [
-      '.mp4',
-      '.avi',
-      '.mov',
-      '.mkv',
-      '.flv',
-      '.wmv',
-      '.webm'
-    ]
+    // Determine if it's a video file (whisper-web supports video)
+    const videoExtensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.webm']
     const isVideo = videoExtensions.some(ext => fileName.endsWith(ext))
 
     // Check MIME type if available
@@ -430,161 +324,175 @@ export class AudioManager {
     }
   }
 
+
   /**
-   * Convert audio data to WAV format
-   * @param {ArrayBuffer} audioData - The audio data to convert
-   * @param {number} sampleRate - Sample rate (default: 16000)
-   * @param {number} channels - Number of channels (default: 1)
-   * @returns {ArrayBuffer} WAV formatted audio data
+   * Extract audio from video file (whisper-web style)
+   * @param {File} videoFile - The video file
+   * @returns {Promise<Blob>} Audio blob extracted from video
    */
-  convertToWAV(audioData, sampleRate = 16000, channels = 1) {
-    try {
-      // If audioData is already a Float32Array, use it directly
-      let samples
-      if (audioData instanceof Float32Array) {
-        samples = audioData
-      } else if (audioData instanceof ArrayBuffer) {
-        samples = new Float32Array(audioData)
-      } else {
-        throw new Error('Invalid audio data format')
+  async extractAudioFromVideo(videoFile) {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video')
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+      
+      video.crossOrigin = 'anonymous'
+      video.muted = true
+      video.preload = 'metadata'
+
+      const cleanup = () => {
+        if (video.src) URL.revokeObjectURL(video.src)
+        if (audioContext.state !== 'closed') audioContext.close().catch(() => {})
       }
 
-      const length = samples.length
-      const buffer = new ArrayBuffer(44 + length * 2)
-      const view = new DataView(buffer)
+      const timeout = setTimeout(() => {
+        cleanup()
+        reject(new Error('Video audio extraction timeout'))
+      }, 60000)
 
-      // WAV header
-      const writeString = (offset, string) => {
-        for (let i = 0; i < string.length; i++) {
-          view.setUint8(offset + i, string.charCodeAt(i))
+      video.addEventListener('loadedmetadata', async () => {
+        try {
+          console.log('Extracting audio from video:', {
+            duration: video.duration,
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight
+          })
+
+          const source = audioContext.createMediaElementSource(video)
+          const destination = audioContext.createMediaStreamDestination()
+          source.connect(destination)
+
+          const mediaRecorder = new MediaRecorder(destination.stream, {
+            mimeType: 'audio/webm;codecs=opus'
+          })
+
+          const audioChunks = []
+
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) audioChunks.push(event.data)
+          }
+
+          mediaRecorder.onstop = () => {
+            clearTimeout(timeout)
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' })
+            cleanup()
+            resolve(audioBlob)
+          }
+
+          mediaRecorder.onerror = (event) => {
+            clearTimeout(timeout)
+            cleanup()
+            reject(new Error(`Audio extraction failed: ${event.error?.message}`))
+          }
+
+          mediaRecorder.start()
+          await video.play()
+
+          video.addEventListener('ended', () => {
+            if (mediaRecorder.state === 'recording') mediaRecorder.stop()
+          })
+
+        } catch (error) {
+          clearTimeout(timeout)
+          cleanup()
+          reject(new Error(`Video processing failed: ${error.message}`))
+        }
+      })
+
+      video.addEventListener('error', () => {
+        clearTimeout(timeout)
+        cleanup()
+        reject(new Error('Failed to load video file'))
+      })
+
+      video.src = URL.createObjectURL(videoFile)
+      video.load()
+    })
+  }
+
+  /**
+   * Process audio for Whisper (following whisper-web approach)
+   * @param {Blob|File} audioInput - Audio blob or file
+   * @returns {Promise<Float32Array>} Preprocessed audio data for Whisper
+   */
+  async processAudioForWhisper(audioInput) {
+    try {
+      console.log('Processing audio for Whisper:', {
+        size: audioInput.size,
+        type: audioInput.type
+      })
+
+      // For video files, extract audio first
+      let processedInput = audioInput
+      if (audioInput instanceof File) {
+        const validation = this.validateAudioFormat(audioInput)
+        if (validation.isVideo) {
+          console.log('Extracting audio from video file...')
+          processedInput = await this.extractAudioFromVideo(audioInput)
         }
       }
 
-      // RIFF chunk descriptor
-      writeString(0, 'RIFF')
-      view.setUint32(4, 36 + length * 2, true) // File size - 8
-      writeString(8, 'WAVE')
-
-      // FMT sub-chunk
-      writeString(12, 'fmt ')
-      view.setUint32(16, 16, true) // Sub-chunk size
-      view.setUint16(20, 1, true) // Audio format (PCM)
-      view.setUint16(22, channels, true) // Number of channels
-      view.setUint32(24, sampleRate, true) // Sample rate
-      view.setUint32(28, sampleRate * channels * 2, true) // Byte rate
-      view.setUint16(32, channels * 2, true) // Block align
-      view.setUint16(34, 16, true) // Bits per sample
-
-      // Data sub-chunk
-      writeString(36, 'data')
-      view.setUint32(40, length * 2, true) // Sub-chunk size
-
-      // Convert float samples to 16-bit PCM
-      let offset = 44
-      for (let i = 0; i < length; i++) {
-        const sample = Math.max(-1, Math.min(1, samples[i]))
-        view.setInt16(offset, sample * 0x7fff, true)
-        offset += 2
+      // Decode audio using Web Audio API
+      const arrayBuffer = await processedInput.arrayBuffer()
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)({
+        sampleRate: 16000 // Whisper expects 16kHz
+      })
+      
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+      
+      // Get mono audio data (first channel)
+      let audioData = audioBuffer.getChannelData(0)
+      
+      // Resample to 16kHz if needed
+      if (audioBuffer.sampleRate !== 16000) {
+        audioData = this._resample(audioData, audioBuffer.sampleRate, 16000)
       }
 
-      console.log('Audio converted to WAV format:', {
-        sampleRate,
-        channels,
-        duration: length / sampleRate,
-        size: buffer.byteLength
+      // Close context to free resources
+      await audioContext.close()
+
+      console.log('Audio processing completed:', {
+        duration: audioData.length / 16000,
+        samples: audioData.length
       })
 
-      return buffer
+      return audioData
     } catch (error) {
-      console.error('WAV conversion error:', error)
-      throw new Error(`Failed to convert audio to WAV: ${error.message}`)
+      console.error('Audio processing failed:', error)
+      throw new Error(`Failed to process audio: ${error.message}`)
     }
   }
 
   /**
-   * Split audio data into chunks for processing
-   * @param {ArrayBuffer|Float32Array} audioData - The audio data to split
-   * @param {number} chunkSize - Chunk size in seconds (default: 2.5)
-   * @param {number} sampleRate - Sample rate (default: 16000)
-   * @param {number} overlap - Overlap between chunks in seconds (default: 0.5)
-   * @returns {Array<Float32Array>} Array of audio chunks
+   * Simple linear interpolation resampling (whisper-web style)
+   * @param {Float32Array} audioData - Input audio data
+   * @param {number} sourceSampleRate - Source sample rate
+   * @param {number} targetSampleRate - Target sample rate (16000)
+   * @returns {Float32Array} Resampled audio data
    */
-  splitAudioChunks(
-    audioData,
-    chunkSize = 2.5,
-    sampleRate = 16000,
-    overlap = 0.5
-  ) {
-    try {
-      let samples
-      if (audioData instanceof Float32Array) {
-        samples = audioData
-      } else if (audioData instanceof ArrayBuffer) {
-        samples = new Float32Array(audioData)
-      } else {
-        throw new Error('Invalid audio data format')
-      }
-
-      const chunkSamples = Math.floor(chunkSize * sampleRate)
-      const overlapSamples = Math.floor(overlap * sampleRate)
-      const stepSize = chunkSamples - overlapSamples
-
-      const chunks = []
-
-      for (let i = 0; i < samples.length; i += stepSize) {
-        const end = Math.min(i + chunkSamples, samples.length)
-        const chunk = samples.slice(i, end)
-
-        // Only add chunks that have meaningful audio data
-        if (chunk.length >= sampleRate * 0.5) {
-          // At least 0.5 seconds
-          chunks.push(chunk)
-        }
-
-        // Break if we've reached the end
-        if (end >= samples.length) {
-          break
-        }
-      }
-
-      console.log('Audio split into chunks:', {
-        totalSamples: samples.length,
-        chunkCount: chunks.length,
-        chunkSize: chunkSize,
-        overlap: overlap,
-        avgChunkLength:
-          chunks.length > 0
-            ? chunks.reduce((sum, chunk) => sum + chunk.length, 0) /
-              chunks.length
-            : 0
-      })
-
-      return chunks
-    } catch (error) {
-      console.error('Audio chunking error:', error)
-      throw new Error(`Failed to split audio into chunks: ${error.message}`)
+  _resample(audioData, sourceSampleRate, targetSampleRate) {
+    if (sourceSampleRate === targetSampleRate) {
+      return audioData
     }
+
+    const ratio = sourceSampleRate / targetSampleRate
+    const newLength = Math.round(audioData.length / ratio)
+    const resampled = new Float32Array(newLength)
+
+    for (let i = 0; i < newLength; i++) {
+      const sourceIndex = i * ratio
+      const index = Math.floor(sourceIndex)
+      const fraction = sourceIndex - index
+
+      if (index + 1 < audioData.length) {
+        resampled[i] = audioData[index] * (1 - fraction) + audioData[index + 1] * fraction
+      } else {
+        resampled[i] = audioData[index] || 0
+      }
+    }
+
+    return resampled
   }
 
-  // Removed initRealtimeProcessing method
-
-  // Removed startRealtimeProcessing method
-
-  // Removed stopRealtimeProcessing method
-
-  // Removed addChunkCallback method
-
-  // Removed removeChunkCallback method
-
-  // Removed processAudioData method
-
-  // Removed processRemainingBuffer method
-
-  // Removed getBufferStatus method
-
-  // Removed configureRealtimeProcessing method
-
-  // Removed getAudioAnalysisData method
 
   /**
    * Clean up resources
