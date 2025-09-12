@@ -87,7 +87,7 @@ class App {
         transcriptionLanguageContainer,
         {
           items: this.getTranscriptionLanguageItems(),
-          value: 'auto',
+          value: 'en',
           placeholder: 'Select Language'
         }
       )
@@ -103,9 +103,8 @@ class App {
   // 获取转录语言选项（支持国际化）
   getTranscriptionLanguageItems() {
     return [
-      { value: 'auto', text: this.i18nController.t('autoDetect') },
-      { value: 'zh', text: this.i18nController.t('chinese') },
-      { value: 'en', text: this.i18nController.t('english') }
+      { value: 'en', text: this.i18nController.t('english') },
+      { value: 'zh', text: this.i18nController.t('chinese') }
     ]
   }
 
@@ -130,7 +129,7 @@ class App {
   getSelectedTranscriptionLanguage() {
     return this.transcriptionLanguageSelect
       ? this.transcriptionLanguageSelect.getValue()
-      : 'auto'
+      : 'en'
   }
 
   // 设置转录语言

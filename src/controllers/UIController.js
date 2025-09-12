@@ -404,6 +404,10 @@ export class UIController {
     try {
       console.log('Starting recording transcription...')
 
+      // Show transcription in progress indicator (only the progress bar)
+      const resultElement = this.elements.transcriptionResult
+      resultElement.classList.add('transcription-in-progress')
+
       // 获取选择的语言
       const language = this.getSelectedLanguage()
       
@@ -414,10 +418,16 @@ export class UIController {
       this.displayTranscriptionResult(result.text, false)
       this.elements.copyButton.classList.remove('hidden')
 
+      // Remove transcription in progress indicator
+      resultElement.classList.remove('transcription-in-progress')
+
       console.log('Recording transcription completed')
     } catch (error) {
       console.error('Recording transcription error:', error)
       this.showErrorMessage(`转录失败: ${error.message}`)
+      // Remove transcription in progress indicator in case of error
+      const resultElement = this.elements.transcriptionResult
+      resultElement.classList.remove('transcription-in-progress')
     }
   }
 
@@ -437,16 +447,18 @@ export class UIController {
     try {
       // 清空转录结果
       this.clearTranscriptionResults()
-      
-      // Show loading state
-      this.showLoadingState()
+
+      // 禁用按钮，避免重复点击
       this.elements.transcribeButton.disabled = true
 
       let fileToTranscribe = this.currentUploadedFile
 
-      // Update loading text for transcription
+      // Update button text for transcription
       this.elements.transcribeButton.textContent = 'Transcribing...'
-      this.elements.loadingText.textContent = 'Processing transcription...'
+
+      // Show transcription in progress indicator (only the progress bar)
+      const resultElement = this.elements.transcriptionResult
+      resultElement.classList.add('transcription-in-progress')
 
       // Get selected language
       const language = this.getSelectedLanguage()
@@ -461,18 +473,20 @@ export class UIController {
       // Display result
       this.displayTranscriptionResult(result.text, false)
       this.elements.copyButton.classList.remove('hidden')
+
+      // Remove transcription in progress indicator
+      resultElement.classList.remove('transcription-in-progress')
     } catch (error) {
       console.error('Transcription error:', error)
       this.showErrorMessage(error.message)
+      // Remove transcription in progress indicator in case of error
+      const resultElement = this.elements.transcriptionResult
+      resultElement.classList.remove('transcription-in-progress')
     } finally {
-      // Hide loading state
-      this.hideLoadingState()
+      // 重新启用按钮
       this.elements.transcribeButton.disabled = false
 
       this.elements.transcribeButton.textContent = this.i18n ? this.i18n.t('startTranscription') : 'Start Transcription'
-
-      // Reset loading text
-      this.elements.loadingText.textContent = 'Processing...'
     }
   }
 
@@ -496,7 +510,7 @@ export class UIController {
 
   updateRecordingUI(isRecording) {
     const recordButton = this.elements.recordButton
-    const recordText = recordButton.parentElement.querySelector('.record-text')
+    const recordText = recordButton.closest('.recording-controls').querySelector('.record-text')
 
     if (isRecording) {
       recordButton.classList.add('recording')
@@ -947,14 +961,30 @@ export class UIController {
 
 
   copyTranscriptionResult() {
-    const text = this.elements.transcriptionResult.textContent
+    const resultElement = this.elements.transcriptionResult
     const placeholderText = this.i18n
       ? this.i18n.t('resultsPlaceholder')
       : 'Transcription results will appear here...'
 
-    if (text && text !== placeholderText) {
+    // Extract only text content from partial-text elements, preserving line breaks
+    const partialTextChunks = resultElement.querySelectorAll('.partial-text')
+    let textToCopy = ''
+    
+    if (partialTextChunks.length > 0) {
+      // Extract text from each partial-text chunk and join with line breaks
+      const textArray = Array.from(partialTextChunks).map(chunk => chunk.textContent.trim())
+      textToCopy = textArray.join('\n')
+    } else {
+      // Fallback to full text content if no partial-text chunks found
+      const fullText = resultElement.textContent
+      if (fullText && fullText !== placeholderText) {
+        textToCopy = fullText.trim()
+      }
+    }
+
+    if (textToCopy) {
       navigator.clipboard
-        .writeText(text)
+        .writeText(textToCopy)
         .then(() => {
           // Show success feedback
           const originalText = this.elements.copyButton.textContent

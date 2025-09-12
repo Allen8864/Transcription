@@ -14,11 +14,17 @@ class WhisperWorker {
     this.model = null
     this.isInitialized = false
     this.loadingProgress = 0
+    this.lastProgress = 0
+    this.progressHistory = []
+    this.progressUpdateThrottle = 100 // 限制更新频率（毫秒）
+    this.lastUpdateTime = 0
+    this.fileProgress = new Map() // 记录每个文件的下载进度
+    this.expectedFiles = ['config.json', 'model.bin', 'tokenizer.json', 'vocab.json']
   }
 
   /**
    * Initialize the Whisper model
-   * Uses Xenova's transformers.js with Whisper Tiny model for fast loading
+   * Uses Xenova's transformers.js with Whisper Small model for better accuracy
    */
   async initializeModel() {
     try {
@@ -26,18 +32,76 @@ class WhisperWorker {
       
       // Send progress updates during model loading
       const progressCallback = (progress) => {
-        this.loadingProgress = Math.round(progress.progress || 0)
-        self.postMessage({
-          type: 'progress',
-          data: { progress: this.loadingProgress }
-        })
+        const currentTime = Date.now()
+        
+        // 获取当前正在下载的文件名
+        const file = progress.file || 'unknown'
+        const rawProgress = Math.round(progress.progress || 0)
+        
+        // 更新文件进度记录
+        this.fileProgress.set(file, rawProgress)
+        
+        // 计算总体进度
+        let totalProgress = 0
+        let filesCount = 0
+        
+        // 为已知的文件分配权重
+        const weights = {
+          'model.bin': 0.7,    // 模型文件最大，给予最高权重
+          'tokenizer.json': 0.1,
+          'config.json': 0.1,
+          'vocab.json': 0.1
+        }
+        
+        let totalWeight = 0
+        
+        // 计算加权平均进度
+        for (const [filename, progress] of this.fileProgress) {
+          const weight = weights[filename] || 0.1 // 未知文件给予较小权重
+          totalProgress += progress * weight
+          totalWeight += weight
+        }
+        
+        // 如果有进度记录，计算加权平均值
+        const weightedProgress = totalWeight > 0 
+          ? Math.round(totalProgress / totalWeight)
+          : rawProgress
+        
+        // 添加到历史记录用于平滑处理
+        this.progressHistory.push(weightedProgress)
+        if (this.progressHistory.length > 3) { // 减少历史记录长度，使进度更敏感
+          this.progressHistory.shift()
+        }
+        
+        // 计算平滑进度值
+        const smoothedProgress = Math.round(
+          this.progressHistory.reduce((a, b) => a + b, 0) / this.progressHistory.length
+        )
+        
+        // 节流更新：限制更新频率
+        if (currentTime - this.lastUpdateTime >= this.progressUpdateThrottle) {
+          // 确保进度值始终递增
+          this.loadingProgress = Math.max(this.loadingProgress, smoothedProgress)
+          this.lastProgress = this.loadingProgress
+          this.lastUpdateTime = currentTime
+          
+          // 发送进度更新
+          self.postMessage({
+            type: 'progress',
+            data: { 
+              progress: this.loadingProgress,
+              file: file, // 添加当前文件信息，方便调试
+              detail: Object.fromEntries(this.fileProgress) // 添加详细进度信息
+            }
+          })
+        }
       }
 
       // Load Whisper Tiny model (quantized for better performance)
       this.model = await pipeline(
         'automatic-speech-recognition',
         'Xenova/whisper-tiny',
-        { 
+        {
           progress_callback: progressCallback,
           quantized: true
         }
@@ -48,7 +112,7 @@ class WhisperWorker {
 
       return {
         success: true,
-        modelName: 'whisper-tiny',
+        modelName: 'whisper-tin y',
         isQuantized: true
       }
     } catch (error) {
