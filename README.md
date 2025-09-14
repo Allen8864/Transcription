@@ -1,6 +1,6 @@
-# WhisperCPP 语音转文字网页应用
+# Whisper Tiny 语音转文字网页应用
 
-基于 WhisperCPP 的纯前端语音转文字网页应用，支持实时录音转录和音频文件上传转录。
+基于 Whisper Tiny 的纯前端语音转文字网页应用，支持实时录音转录和音频文件上传转录。
 
 ## 功能特性
 
@@ -15,7 +15,7 @@
 
 - **前端**: Vanilla JavaScript + Vite
 - **音频处理**: Web Audio API + MediaRecorder API
-- **AI 模型**: WhisperCPP WebAssembly
+- **AI 模型**: Whisper Tiny (Transformers.js)
 - **部署**: Vercel
 
 ## 开发规范

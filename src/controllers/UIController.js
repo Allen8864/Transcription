@@ -365,24 +365,31 @@ export class UIController {
     console.log('File uploaded:', file.name)
 
     try {
-      // Validate the file using AudioManager
+      // Use improved FileReader for processing (following FileTile pattern)
       if (!this.audioManager) {
         throw new Error('Audio manager not available')
       }
 
-      const validation = await this.audioManager.handleFileUpload(file)
+      // Process file using the improved FileReader
+      const result = await this.audioManager.processFileWithFileReader(file)
+      
+      // Store processed data for transcription
+      this.currentUploadedFile = file
+      this.isVideoFile = result.isVideo
+      this.processedAudioData = result.audioData // Store pre-processed audio data
+      this.audioBuffer = result.audioBuffer // Store AudioBuffer for playback
+      this.fileBlobUrl = result.blobUrl // Store blob URL for playback
 
-      if (!validation.isValid) {
-        this.showErrorMessage(validation.error)
-        this.clearFileInfo()
-        return
-      }
-
-      // Store whether this is a video file
-      this.isVideoFile = validation.isVideo
+      console.log('File processed successfully:', {
+        fileName: file.name,
+        isVideo: result.isVideo,
+        audioDataLength: result.audioData.length,
+        duration: result.audioBuffer.duration,
+        sampleRate: result.audioBuffer.sampleRate
+      })
 
       // Display file information
-      await this.displayFileInfo(file, validation.isVideo)
+      await this.displayFileInfo(file, result.isVideo)
     } catch (error) {
       console.error('File upload error:', error)
       this.showErrorMessage(error.message)
@@ -439,8 +446,14 @@ export class UIController {
       return
     }
 
-    if (!this.transcriptionManager || !this.audioManager) {
-      this.showErrorMessage('Required managers not available')
+    if (!this.transcriptionManager) {
+      this.showErrorMessage('Transcription manager not available')
+      return
+    }
+
+    // Check if we have pre-processed audio data (from improved FileReader)
+    if (!this.processedAudioData) {
+      this.showErrorMessage('Audio data not processed. Please try uploading the file again.')
       return
     }
 
@@ -450,8 +463,6 @@ export class UIController {
 
       // 禁用按钮，避免重复点击
       this.elements.transcribeButton.disabled = true
-
-      let fileToTranscribe = this.currentUploadedFile
 
       // Update button text for transcription
       this.elements.transcribeButton.textContent = 'Transcribing...'
@@ -463,10 +474,15 @@ export class UIController {
       // Get selected language
       const language = this.getSelectedLanguage()
 
-      // Start transcription (simplified whisper-web approach)
-      const result = await this.transcriptionManager.transcribeFile(
-        this.currentUploadedFile,
-        this.audioManager,
+      console.log('Starting transcription with pre-processed audio data:', {
+        audioDataLength: this.processedAudioData.length,
+        duration: this.processedAudioData.length / 16000, // Assuming 16kHz sample rate
+        language: language
+      })
+
+      // Use pre-processed audio data directly (following FileTile pattern)
+      const result = await this.transcriptionManager.transcribeAudioData(
+        this.processedAudioData,
         language
       )
 
@@ -1060,6 +1076,14 @@ export class UIController {
     this.currentUploadedFile = null
     this.isVideoFile = false
 
+    // Clear processed audio data (from improved FileReader)
+    this.processedAudioData = null
+    this.audioBuffer = null
+    if (this.fileBlobUrl) {
+      URL.revokeObjectURL(this.fileBlobUrl)
+      this.fileBlobUrl = null
+    }
+
     // Reset transcribe button text
     this.elements.transcribeButton.textContent = this.i18n ? this.i18n.t('startTranscription') : 'Start Transcription'
 
@@ -1083,36 +1107,200 @@ export class UIController {
   }
 
   async getMediaDuration(file, isVideo = false) {
+    // Try multiple methods to get duration
+    try {
+      // Method 1: Use our AudioFileReader to get accurate duration
+      if (!isVideo && this.audioBuffer) {
+        const duration = this.audioBuffer.duration
+        if (isFinite(duration) && duration > 0) {
+          console.log('Using AudioBuffer duration:', duration)
+          return this.formatTime(duration)
+        }
+      }
+
+      // Method 2: Parse WAV file header directly for more reliable duration
+      if (!isVideo && file.name.toLowerCase().endsWith('.wav')) {
+        try {
+          const wavDuration = await this.getWAVDuration(file)
+          if (wavDuration > 0) {
+            console.log('Using WAV header duration:', wavDuration)
+            return this.formatTime(wavDuration)
+          }
+        } catch (error) {
+          console.warn('WAV header parsing failed:', error)
+        }
+      }
+
+      // Method 3: Enhanced HTML5 Audio/Video API with better error handling
+      return await this.getMediaDurationFromHTML5(file, isVideo)
+      
+    } catch (error) {
+      console.error('All duration methods failed:', error)
+      return 'Unknown'
+    }
+  }
+
+  /**
+   * Get duration from WAV file header (more reliable than HTML5 Audio)
+   * @param {File} file - WAV file
+   * @returns {Promise<number>} Duration in seconds
+   */
+  async getWAVDuration(file) {
     return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      
+      reader.onload = (e) => {
+        try {
+          const arrayBuffer = e.target.result
+          const view = new DataView(arrayBuffer)
+          
+          // Check if it's a valid WAV file
+          const riffHeader = String.fromCharCode(
+            view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3)
+          )
+          const waveHeader = String.fromCharCode(
+            view.getUint8(8), view.getUint8(9), view.getUint8(10), view.getUint8(11)
+          )
+          
+          if (riffHeader !== 'RIFF' || waveHeader !== 'WAVE') {
+            reject(new Error('Not a valid WAV file'))
+            return
+          }
+          
+          // Read WAV format information
+          const sampleRate = view.getUint32(24, true)
+          const byteRate = view.getUint32(28, true)
+          const bitsPerSample = view.getUint16(34, true)
+          const numChannels = view.getUint16(22, true)
+          
+          // Find data chunk
+          let dataSize = 0
+          let offset = 36
+          
+          while (offset < arrayBuffer.byteLength - 8) {
+            const chunkId = String.fromCharCode(
+              view.getUint8(offset), view.getUint8(offset + 1),
+              view.getUint8(offset + 2), view.getUint8(offset + 3)
+            )
+            const chunkSize = view.getUint32(offset + 4, true)
+            
+            if (chunkId === 'data') {
+              dataSize = chunkSize
+              break
+            }
+            
+            offset += 8 + chunkSize
+          }
+          
+          if (dataSize === 0) {
+            reject(new Error('No data chunk found in WAV file'))
+            return
+          }
+          
+          // Calculate duration: dataSize / (sampleRate * numChannels * (bitsPerSample / 8))
+          const bytesPerSample = (bitsPerSample / 8) * numChannels
+          const totalSamples = dataSize / bytesPerSample
+          const duration = totalSamples / sampleRate
+          
+          console.log('WAV file analysis:', {
+            sampleRate,
+            numChannels,
+            bitsPerSample,
+            dataSize,
+            duration
+          })
+          
+          if (isFinite(duration) && duration > 0) {
+            resolve(duration)
+          } else {
+            reject(new Error('Invalid duration calculated'))
+          }
+          
+        } catch (error) {
+          reject(new Error(`WAV parsing error: ${error.message}`))
+        }
+      }
+      
+      reader.onerror = () => {
+        reject(new Error('Failed to read WAV file'))
+      }
+      
+      // Read first 1KB which should contain the header
+      const headerSlice = file.slice(0, 1024)
+      reader.readAsArrayBuffer(headerSlice)
+    })
+  }
+
+  /**
+   * Enhanced HTML5 Audio/Video duration detection
+   * @param {File} file - Media file
+   * @param {boolean} isVideo - Whether it's a video file
+   * @returns {Promise<string>} Formatted duration
+   */
+  async getMediaDurationFromHTML5(file, isVideo = false) {
+    return new Promise((resolve) => {
       const media = isVideo ? document.createElement('video') : new Audio()
       const url = URL.createObjectURL(file)
+      let resolved = false
 
+      const cleanup = () => {
+        if (url) URL.revokeObjectURL(url)
+      }
+
+      const resolveOnce = (value) => {
+        if (!resolved) {
+          resolved = true
+          cleanup()
+          resolve(value)
+        }
+      }
+
+      // Multiple event listeners for better compatibility
       media.addEventListener('loadedmetadata', () => {
-        URL.revokeObjectURL(url)
         const duration = media.duration
-        if (isFinite(duration)) {
-          resolve(this.formatTime(duration))
-        } else {
-          resolve('Unknown')
+        console.log('HTML5 loadedmetadata duration:', duration)
+        if (isFinite(duration) && duration > 0) {
+          resolveOnce(this.formatTime(duration))
         }
       })
 
-      media.addEventListener('error', error => {
-        URL.revokeObjectURL(url)
-        reject(error)
+      media.addEventListener('durationchange', () => {
+        const duration = media.duration
+        console.log('HTML5 durationchange duration:', duration)
+        if (isFinite(duration) && duration > 0) {
+          resolveOnce(this.formatTime(duration))
+        }
       })
 
-      // Set timeout to avoid hanging
-      setTimeout(() => {
-        URL.revokeObjectURL(url)
-        resolve('Unknown')
-      }, 10000) // Longer timeout for video files
+      media.addEventListener('canplaythrough', () => {
+        const duration = media.duration
+        console.log('HTML5 canplaythrough duration:', duration)
+        if (isFinite(duration) && duration > 0) {
+          resolveOnce(this.formatTime(duration))
+        }
+      })
 
+      media.addEventListener('error', (error) => {
+        console.warn('HTML5 media error:', error)
+        resolveOnce('Unknown')
+      })
+
+      // Extended timeout for difficult files
+      setTimeout(() => {
+        console.warn('HTML5 duration detection timeout')
+        resolveOnce('Unknown')
+      }, 15000) // 15 seconds timeout
+
+      // Set up media element
+      media.preload = 'metadata'
       media.src = url
+      
       if (isVideo) {
-        media.muted = true // Mute video to avoid audio playback
-        media.load()
+        media.muted = true
       }
+      
+      // Always call load() to ensure metadata loading
+      media.load()
     })
   }
 
@@ -1144,22 +1332,35 @@ export class UIController {
 
     this.currentAudio = new Audio(audioUrl)
 
-    // Use provided duration or calculate from recording time
-    const duration = knownDuration || this.getRecordingDuration()
-    if (duration > 0) {
-      this.audioDuration = duration
-      console.log('Using known recording duration:', duration)
-      this.elements.audioTime.textContent = `00:00 / ${this.formatTime(duration)}`
+    // Enhanced duration detection - try multiple sources
+    let bestDuration = 0
+    
+    // Priority 1: Known duration (from recording or calculation)
+    const recordingDuration = knownDuration || this.getRecordingDuration()
+    if (recordingDuration > 0) {
+      bestDuration = recordingDuration
+      console.log('Using known/recording duration:', bestDuration)
+    }
+    
+    // Priority 2: Try to estimate from blob size if no known duration
+    if (bestDuration === 0) {
+      bestDuration = this.estimateAudioDuration(audioBlob)
+      console.log('Using estimated duration:', bestDuration)
+    }
+
+    // Set initial duration
+    if (bestDuration > 0) {
+      this.audioDuration = bestDuration
+      this.elements.audioTime.textContent = `00:00 / ${this.formatTime(bestDuration)}`
     } else {
-      // Fallback to loading state
       this.audioDuration = 0
-      this.elements.audioTime.textContent = '00:00 / --:--'
+      this.elements.audioTime.textContent = '00:00 / Loading...'
     }
 
     this.elements.progressFill.style.width = '0%'
     this.elements.progressSlider.value = 0
 
-    // Still load metadata for accuracy, but don't wait for it
+    // Enhanced metadata loading with multiple event listeners
     this.currentAudio.preload = 'metadata'
     this.currentAudio.load()
 
@@ -1389,13 +1590,49 @@ export class UIController {
       return knownDuration
     }
 
-    // Fallback: rough estimate based on blob size and bitrate
-    // This is very approximate and may not be accurate
-    const bitrate = 128000 // bits per second (from MediaRecorder config)
-    const bytesPerSecond = bitrate / 8
-    const estimatedDuration = audioBlob.size / bytesPerSecond
-    console.log('Estimated duration from blob size:', estimatedDuration)
-    return estimatedDuration
+    // Enhanced blob-based estimation
+    if (!audioBlob || audioBlob.size === 0) {
+      return 0
+    }
+
+    // Try to determine format and estimate accordingly
+    const mimeType = audioBlob.type || ''
+    let estimatedDuration = 0
+
+    if (mimeType.includes('webm') || mimeType.includes('ogg')) {
+      // WebM/OGG typically uses variable bitrate, estimate conservatively
+      const avgBitrate = 64000 // bits per second (conservative estimate)
+      const bytesPerSecond = avgBitrate / 8
+      estimatedDuration = audioBlob.size / bytesPerSecond
+    } else if (mimeType.includes('wav')) {
+      // WAV is uncompressed, more predictable
+      // Assume 16-bit, mono, 16kHz (common for speech)
+      const sampleRate = 16000
+      const bitsPerSample = 16
+      const channels = 1
+      const bytesPerSecond = (sampleRate * bitsPerSample * channels) / 8
+      // Account for WAV header (typically 44 bytes)
+      const dataSize = Math.max(0, audioBlob.size - 44)
+      estimatedDuration = dataSize / bytesPerSecond
+    } else {
+      // Generic estimation for other formats
+      const avgBitrate = 128000 // bits per second
+      const bytesPerSecond = avgBitrate / 8
+      estimatedDuration = audioBlob.size / bytesPerSecond
+    }
+
+    // Sanity check: duration should be reasonable
+    if (estimatedDuration > 0 && estimatedDuration < 3600) { // Less than 1 hour
+      console.log('Estimated duration from blob analysis:', {
+        size: audioBlob.size,
+        type: mimeType,
+        duration: estimatedDuration
+      })
+      return estimatedDuration
+    }
+
+    console.warn('Could not estimate audio duration reliably')
+    return 0
   }
 
   onVolumeChange(value) {
@@ -1462,16 +1699,36 @@ export class UIController {
     this.uploadAudio.preload = 'metadata'
     this.uploadAudio.load()
 
-    // Set up audio event listeners
-    this.uploadAudio.addEventListener('loadedmetadata', () => {
+    // Try to use AudioBuffer duration if available (more reliable for WAV)
+    if (this.audioBuffer && this.audioBuffer.duration > 0) {
+      this.uploadAudioDuration = this.audioBuffer.duration
+      console.log('Using AudioBuffer duration for upload player:', this.uploadAudioDuration)
+      this.updateUploadAudioTime()
+    } else {
+      // Fallback to HTML5 Audio API with enhanced event handling
+      this.uploadAudioDuration = 0
+      this.elements.uploadAudioTime.textContent = '00:00 / Loading...'
+    }
+
+    // Enhanced duration detection with multiple events
+    const updateDurationFromAudio = () => {
       const duration = this.uploadAudio.duration
-      console.log('Upload audio metadata loaded - Duration:', duration, 'seconds')
+      console.log('Upload audio duration event - Duration:', duration, 'seconds')
 
       if (isFinite(duration) && duration > 0) {
-        this.uploadAudioDuration = duration
-        this.updateUploadAudioTime()
+        // Only update if we don't already have a better duration from AudioBuffer
+        if (!this.uploadAudioDuration || this.uploadAudioDuration === 0) {
+          this.uploadAudioDuration = duration
+          this.updateUploadAudioTime()
+        }
       }
-    })
+    }
+
+    // Multiple event listeners for better compatibility
+    this.uploadAudio.addEventListener('loadedmetadata', updateDurationFromAudio)
+    this.uploadAudio.addEventListener('durationchange', updateDurationFromAudio)
+    this.uploadAudio.addEventListener('canplay', updateDurationFromAudio)
+    this.uploadAudio.addEventListener('canplaythrough', updateDurationFromAudio)
 
     this.uploadAudio.addEventListener('timeupdate', () => {
       this.updateUploadProgress()
@@ -1490,7 +1747,6 @@ export class UIController {
     // Initialize UI
     this.elements.uploadProgressFill.style.width = '0%'
     this.elements.uploadProgressSlider.value = 0
-    this.elements.uploadAudioTime.textContent = '00:00 / --:--'
     this.isUploadPlaying = false
     this.updateUploadPlayButton()
 

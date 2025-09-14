@@ -7,7 +7,7 @@ export const languages = {
     translations: {
       // Header
       title: 'Whisper Web Transcription',
-      subtitle: 'Pure frontend speech-to-text application based on WhisperCPP',
+      subtitle: 'Pure frontend speech-to-text application based on Whisper tiny',
 
       // Language selector (for transcription)
       transcriptionLanguageLabel: 'Transcription Language:',
@@ -60,7 +60,7 @@ export const languages = {
     translations: {
       // Header
       title: 'Whisper Web Transcription',
-      subtitle: '基于 WhisperCPP 的纯前端语音转文字应用',
+      subtitle: '基于 Whisper tiny 的纯前端语音转文字应用',
 
       // Language selector (for transcription)
       transcriptionLanguageLabel: '转录语言:',

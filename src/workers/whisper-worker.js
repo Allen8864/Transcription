@@ -24,7 +24,7 @@ class WhisperWorker {
 
   /**
    * Initialize the Whisper model
-   * Uses Xenova's transformers.js with Whisper Small model for better accuracy
+   * Uses Xenova's transformers.js with Whisper Tiny model for better performance
    */
   async initializeModel() {
     try {
@@ -112,7 +112,7 @@ class WhisperWorker {
 
       return {
         success: true,
-        modelName: 'whisper-tin y',
+        modelName: 'whisper-tiny',
         isQuantized: true
       }
     } catch (error) {
@@ -150,11 +150,23 @@ class WhisperWorker {
         task: 'transcribe',
         return_timestamps: options.returnTimestamps !== false, // Default to true
         chunk_length_s: options.chunkLength || 30,
-        stride_length_s: options.strideLength || 5,
-        // Additional options for better accuracy
-        no_speech_threshold: 0.6,
+        stride_length_s: options.strideLength || 2, // Reduced from 5 to 2 to minimize overlap
+        // Improved options to reduce repetition and hallucination
+        no_speech_threshold: 0.5, // Slightly lower to detect more speech
         logprob_threshold: -1.0,
-        compression_ratio_threshold: 2.4
+        compression_ratio_threshold: 2.4,
+        // Additional parameters to improve quality
+        condition_on_previous_text: false, // Disable to reduce repetition
+        temperature: 0.0, // Use greedy decoding for more consistent results
+        best_of: 1, // Single best result
+        beam_size: 1, // Disable beam search for faster processing
+        patience: 1.0,
+        length_penalty: 1.0,
+        suppress_tokens: [-1], // Suppress special tokens
+        initial_prompt: "", // No initial prompt to avoid bias
+        prefix: null,
+        suppress_blank: true,
+        without_timestamps: false
       }
 
       // Validate audio data
@@ -269,15 +281,18 @@ class WhisperWorker {
       // Perform transcription
       const result = await this.model(audioArray, enhancedOptions)
 
+      // Post-process to reduce repetition
+      const processedResult = this.postProcessTranscription(result)
+      
       // Format result following whisper-web structure
       const transcriptionResult = {
-        text: result.text?.trim() || '',
-        confidence: this.calculateConfidence(result),
-        language: result.language || options.language || 'unknown',
+        text: processedResult.text?.trim() || '',
+        confidence: this.calculateConfidence(processedResult),
+        language: processedResult.language || options.language || 'unknown',
         isPartial: options.isPartial || false,
         timestamp: Date.now(),
         // Additional metadata
-        chunks: result.chunks || [],
+        chunks: processedResult.chunks || [],
         processing_time: Date.now() - performance.now()
       }
 
@@ -292,6 +307,166 @@ class WhisperWorker {
       console.error('Worker transcription error:', error)
       throw new Error(`Transcription failed: ${error.message}`)
     }
+  }
+
+  /**
+   * Post-process transcription result to reduce repetition and improve quality
+   * @param {Object} result - Raw transcription result from Whisper
+   * @returns {Object} Processed transcription result
+   */
+  postProcessTranscription(result) {
+    if (!result || !result.text) {
+      return result
+    }
+
+    let processedText = result.text
+    let processedChunks = result.chunks || []
+
+    try {
+      // Remove excessive repetition
+      processedText = this.removeRepetitiveText(processedText)
+      
+      // Clean up chunks if available
+      if (processedChunks.length > 0) {
+        processedChunks = this.deduplicateChunks(processedChunks)
+      }
+
+      return {
+        ...result,
+        text: processedText,
+        chunks: processedChunks
+      }
+    } catch (error) {
+      console.warn('Post-processing failed, using original result:', error)
+      return result
+    }
+  }
+
+  /**
+   * Remove repetitive text patterns
+   * @param {string} text - Input text
+   * @returns {string} Cleaned text
+   */
+  removeRepetitiveText(text) {
+    if (!text || text.length < 10) {
+      return text
+    }
+
+    // Split into sentences
+    const sentences = text.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0)
+    
+    if (sentences.length <= 1) {
+      return text
+    }
+
+    const cleanedSentences = []
+    const seenSentences = new Set()
+    
+    for (const sentence of sentences) {
+      // Normalize sentence for comparison (remove extra spaces, convert to lowercase)
+      const normalized = sentence.toLowerCase().replace(/\s+/g, ' ').trim()
+      
+      // Skip if we've seen this sentence before (or very similar)
+      if (!seenSentences.has(normalized)) {
+        // Check for partial repetition (e.g., "I hope you'll be safe" variations)
+        const isRepetitive = Array.from(seenSentences).some(seen => {
+          const similarity = this.calculateSimilarity(normalized, seen)
+          return similarity > 0.8 // 80% similarity threshold
+        })
+        
+        if (!isRepetitive) {
+          cleanedSentences.push(sentence)
+          seenSentences.add(normalized)
+        }
+      }
+    }
+
+    return cleanedSentences.join('. ').trim()
+  }
+
+  /**
+   * Calculate text similarity (simple Levenshtein-based approach)
+   * @param {string} str1 - First string
+   * @param {string} str2 - Second string
+   * @returns {number} Similarity score (0-1)
+   */
+  calculateSimilarity(str1, str2) {
+    if (str1 === str2) return 1
+    if (str1.length === 0 || str2.length === 0) return 0
+
+    const longer = str1.length > str2.length ? str1 : str2
+    const shorter = str1.length > str2.length ? str2 : str1
+    
+    if (longer.length === 0) return 1
+    
+    const editDistance = this.levenshteinDistance(longer, shorter)
+    return (longer.length - editDistance) / longer.length
+  }
+
+  /**
+   * Calculate Levenshtein distance between two strings
+   * @param {string} str1 - First string
+   * @param {string} str2 - Second string
+   * @returns {number} Edit distance
+   */
+  levenshteinDistance(str1, str2) {
+    const matrix = []
+    
+    for (let i = 0; i <= str2.length; i++) {
+      matrix[i] = [i]
+    }
+    
+    for (let j = 0; j <= str1.length; j++) {
+      matrix[0][j] = j
+    }
+    
+    for (let i = 1; i <= str2.length; i++) {
+      for (let j = 1; j <= str1.length; j++) {
+        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1]
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1, // substitution
+            matrix[i][j - 1] + 1,     // insertion
+            matrix[i - 1][j] + 1      // deletion
+          )
+        }
+      }
+    }
+    
+    return matrix[str2.length][str1.length]
+  }
+
+  /**
+   * Remove duplicate chunks based on similarity
+   * @param {Array} chunks - Array of transcription chunks
+   * @returns {Array} Deduplicated chunks
+   */
+  deduplicateChunks(chunks) {
+    if (!chunks || chunks.length <= 1) {
+      return chunks
+    }
+
+    const deduplicatedChunks = []
+    const seenTexts = new Set()
+
+    for (const chunk of chunks) {
+      if (!chunk.text) continue
+      
+      const normalizedText = chunk.text.toLowerCase().replace(/\s+/g, ' ').trim()
+      
+      // Skip if we've seen very similar text
+      const isDuplicate = Array.from(seenTexts).some(seen => {
+        return this.calculateSimilarity(normalizedText, seen) > 0.8
+      })
+      
+      if (!isDuplicate) {
+        deduplicatedChunks.push(chunk)
+        seenTexts.add(normalizedText)
+      }
+    }
+
+    return deduplicatedChunks
   }
 
   /**

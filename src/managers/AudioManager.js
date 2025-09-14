@@ -1,4 +1,5 @@
 import { webmFixDuration } from '../utils/BlobFix.js'
+import { AudioFileReader } from '../components/FileReader.js'
 
 /**
  * AudioManager - Simplified audio processing following whisper-web approach
@@ -22,6 +23,14 @@ export class AudioManager {
       '.mp3', '.wav', '.m4a', '.ogg', '.webm', '.flac',
       '.mp4', '.avi', '.mov', '.mkv', '.wmv'  // Video formats
     ]
+    
+    // Initialize AudioFileReader for improved file processing
+    this.fileReader = new AudioFileReader({
+      sampleRate: 16000, // Whisper's expected sample rate
+      onError: (error) => {
+        console.error('FileReader error:', error)
+      }
+    })
   }
 
   async init() {
@@ -406,6 +415,41 @@ export class AudioManager {
 
       video.src = URL.createObjectURL(videoFile)
       video.load()
+    })
+  }
+
+  /**
+   * Process file using improved FileReader (following FileTile pattern)
+   * @param {File} file - The file to process
+   * @returns {Promise<{audioData: Float32Array, audioBuffer: AudioBuffer, blobUrl: string, isVideo: boolean}>}
+   */
+  async processFileWithFileReader(file) {
+    return new Promise((resolve, reject) => {
+      // Set up callbacks for the FileReader
+      this.fileReader.onFileUpdate = (result) => {
+        try {
+          // Extract Float32Array from AudioBuffer for Whisper
+          const audioData = AudioFileReader.extractAudioData(result.audioBuffer)
+          
+          resolve({
+            audioData,
+            audioBuffer: result.audioBuffer,
+            blobUrl: result.blobUrl,
+            isVideo: result.isVideo,
+            mimeType: result.mimeType,
+            file: result.file
+          })
+        } catch (error) {
+          reject(error)
+        }
+      }
+      
+      this.fileReader.onError = (error) => {
+        reject(error)
+      }
+      
+      // Process the file
+      this.fileReader.processFile(file)
     })
   }
 

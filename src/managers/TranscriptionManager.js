@@ -171,7 +171,7 @@ export class TranscriptionManager {
         language: transcriptionLanguage,
         returnTimestamps: true,
         chunkLength: 30, // 30 seconds chunks as per whisper-web
-        strideLength: 5  // 5 seconds stride
+        strideLength: 2  // 5 seconds stride
       }
 
       // Convert Float32Array to ArrayBuffer for worker message
@@ -251,6 +251,32 @@ export class TranscriptionManager {
     this.pendingMessages.clear()
     this.isModelLoaded = false
     this.loadingProgress = 0
+  }
+
+  /**
+   * Transcribe pre-processed audio data directly (following FileTile pattern)
+   * @param {Float32Array} audioData - Pre-processed audio data ready for Whisper
+   * @param {string} language - Language code for transcription
+   * @returns {Promise<Object>} Transcription result
+   */
+  async transcribeAudioData(audioData, language = 'auto') {
+    if (!audioData || !(audioData instanceof Float32Array)) {
+      throw new Error('Audio data must be a Float32Array. Use FileReader.extractAudioData() to prepare the data.')
+    }
+
+    console.log('Starting transcription with pre-processed audio data:', {
+      audioDataLength: audioData.length,
+      duration: audioData.length / 16000, // Assuming 16kHz
+      language: language
+    })
+
+    try {
+      // Use existing transcribeAudio method
+      return await this.transcribeAudio(audioData, language)
+    } catch (error) {
+      console.error('Audio data transcription failed:', error)
+      throw new Error(`Audio data transcription failed: ${error.message}`)
+    }
   }
 
   /**
