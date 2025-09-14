@@ -1122,18 +1122,13 @@ body {
     }
 
     .audio-controls .audio-time {
-        order: 1;
         flex-shrink: 0;
     }
 
-    .audio-controls .download-button,
-    .audio-controls .close-player-button {
-        order: 2;
-    }
-
-    /* Create a flex container for the right-side buttons */
-    .audio-controls .download-button + .close-player-button {
-        margin-left: var(--spacing-xs);
+    .action-buttons {
+        display: flex;
+        gap: var(--spacing-xs);
+        align-items: center;
     }
 
     .volume-control {
