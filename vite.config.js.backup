@@ -1,0 +1,168 @@
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  // 测试配置
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./tests/setup.js'],
+    // 增加测试超时时间，适应 AI 模型加载
+    testTimeout: 30000
+  },
+
+  // 基础配置
+  base: './',
+  
+  // 构建配置
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: true,
+    // 增加 chunk 大小限制，适应 AI 模型
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      output: {
+        // 手动分包策略
+        manualChunks: {
+          // 将 Whisper Worker 单独打包
+          'whisper-worker': ['./src/workers/whisper-worker.js'],
+          // 将 Transformers 库单独打包（体积较大）
+          'transformers': ['@xenova/transformers'],
+          // 将 FFmpeg 相关库单独打包
+          'ffmpeg': ['@ffmpeg/ffmpeg', '@ffmpeg/util']
+        },
+        // 资源文件命名策略
+        assetFileNames: (assetInfo) => {
+          const info = assetInfo.name.split('.')
+          const ext = info[info.length - 1]
+          if (/\.(wasm)$/i.test(assetInfo.name)) {
+            return `wasm/[name]-[hash][extname]`
+          }
+          if (/\.(png|jpe?g|svg|gif|tiff|bmp|ico)$/i.test(assetInfo.name)) {
+            return `images/[name]-[hash][extname]`
+          }
+          if (/\.(mp4|webm|ogg|mp3|wav|flac|aac)$/i.test(assetInfo.name)) {
+            return `media/[name]-[hash][extname]`
+          }
+          if (/\.(woff2?|eot|ttf|otf)$/i.test(assetInfo.name)) {
+            return `fonts/[name]-[hash][extname]`
+          }
+          return `assets/[name]-[hash][extname]`
+        }
+      }
+    },
+    // 目标环境
+    target: ['es2020', 'chrome80', 'firefox78', 'safari13'],
+    // 压缩配置
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
+      }
+    }
+  },
+
+  // 开发服务器配置
+  server: {
+    port: 3000,
+    host: '0.0.0.0',
+    open: true,
+    cors: true,
+    headers: {
+      // 启用 Cross-Origin Isolation 以支持 SharedArrayBuffer
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      // 安全头
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'X-XSS-Protection': '1; mode=block'
+    }
+  },
+
+  // 预览服务器配置
+  preview: {
+    port: 4173,
+    host: '0.0.0.0',
+    headers: {
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'X-XSS-Protection': '1; mode=block'
+    }
+  },
+
+  // 依赖优化
+  optimizeDeps: {
+    // 排除 WebAssembly 文件和大型依赖
+    exclude: [
+      '*.wasm',
+      '@xenova/transformers'
+    ],
+    // 包含需要预构建的依赖
+    include: [
+      '@ffmpeg/ffmpeg',
+      '@ffmpeg/util'
+    ],
+    // ESBuild 配置
+    esbuildOptions: {
+      target: 'es2020'
+    }
+  },
+
+  // 资源处理
+  assetsInclude: [
+    '**/*.wasm',
+    '**/*.bin',
+    '**/*.onnx'
+  ],
+
+  // 定义全局变量
+  define: {
+    // 生产环境标识
+    __DEV__: JSON.stringify(process.env.NODE_ENV === 'development'),
+    // 应用版本
+    __VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0')
+  },
+
+  // Worker 配置
+  worker: {
+    format: 'es',
+    plugins: []
+  },
+
+  // CSS 配置
+  css: {
+    devSourcemap: true,
+    preprocessorOptions: {
+      // 如果使用 Sass/SCSS
+      scss: {
+        additionalData: `@import "./src/styles/variables.scss";`
+      }
+    }
+  },
+
+  // 插件配置（可根据需要添加）
+  plugins: [
+    // 可以在这里添加需要的 Vite 插件
+  ],
+
+  // 解析配置
+  resolve: {
+    alias: {
+      // 设置路径别名
+      '@': '/src',
+      '@components': '/src/components',
+      '@managers': '/src/managers',
+      '@workers': '/src/workers',
+      '@utils': '/src/utils'
+    }
+  },
+
+  // 环境变量配置
+  envPrefix: ['VITE_', 'WHISPER_'],
+
+  // 日志级别
+  logLevel: 'info'
+})
