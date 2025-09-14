@@ -23,17 +23,10 @@ export class TranscriptionManager {
    */
   async initializeWorker() {
     try {
-      // Create new worker instance
-      // Handle both browser and test environments
-      let workerUrl
-      if (typeof import.meta !== 'undefined' && import.meta.url) {
-        workerUrl = new URL('../workers/whisper-worker.js', import.meta.url)
-      } else {
-        // Fallback for test environment
-        workerUrl = '../workers/whisper-worker.js'
-      }
-      
-      this.worker = new Worker(workerUrl, { type: 'module' })
+      // Create new worker instance using Vite's worker syntax
+      // Import worker with ?worker suffix for proper Vite handling
+      const WhisperWorkerModule = await import('../workers/whisper-worker.js?worker')
+      this.worker = new WhisperWorkerModule.default()
 
       // Set up message handling
       this.worker.onmessage = (e) => {
