@@ -4,7 +4,7 @@ A pure front-end, real-time speech-to-text web application powered by the Whispe
 
 ## Live Demo
 
-[Link to your live demo here]
+[[https://whisper-web-nu.vercel.app/]](https://whisper-web-nu.vercel.app/)
 
 ## Features
 
