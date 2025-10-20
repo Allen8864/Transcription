@@ -1,99 +1,88 @@
-# Whisper Tiny 语音转文字网页应用
+# Whisper Web Transcription
 
-基于 Whisper Tiny 的纯前端语音转文字网页应用，支持实时录音转录和音频文件上传转录。
+A pure front-end, real-time speech-to-text web application powered by the Whisper model from OpenAI. This application runs entirely in your browser, ensuring your privacy.
 
-## 功能特性
+## Live Demo
 
-- 🎤 **实时录音转录** - 边录音边显示转录结果
-- 📁 **文件上传转录** - 支持多种音频格式（mp3, wav, m4a, ogg）
-- 🌐 **自动语言识别** - 支持中文、英文自动检测
-- 🎨 **美观界面** - 深色主题，响应式设计
-- 🔒 **隐私保护** - 所有处理在浏览器本地完成
-- ⚡ **高性能** - 基于 WebAssembly 的 Whisper Tiny 模型
+[Link to your live demo here]
 
-## 技术栈
+## Features
 
-- **前端**: Vanilla JavaScript + Vite
-- **音频处理**: Web Audio API + MediaRecorder API
-- **AI 模型**: Whisper Tiny (Transformers.js)
-- **部署**: Vercel
+-   🎤 **Real-time Transcription**: Transcribe audio from your microphone in real-time.
+-   📁 **File Transcription**: Transcribe audio and video files (MP3, WAV, M4A, OGG, MP4, AVI, MOV, MKV).
+-   🌐 **Multi-language Support**: Supports multiple languages, including English and Chinese, with auto-detection.
+-   🔒 **Privacy First**: All processing is done locally in your browser. No data is ever sent to a server.
+-   🚀 **High Performance**: Utilizes WebAssembly and Web Workers for fast and efficient transcription.
+-   🎨 **Modern UI**: A clean and modern user interface with a dark theme.
 
-## 开发规范
+## Technologies Used
 
-### Git 工作流程
+-   **Frontend**: Vanilla JavaScript, HTML5, CSS3
+-   **Build Tool**: Vite
+-   **AI Model**: Whisper (via Transformers.js)
+-   **Audio Processing**: Web Audio API, FFmpeg.wasm
+-   **Concurrency**: Web Workers
 
-1. **功能开发**: 为每个功能创建独立分支
+## Getting Started
 
-   ```bash
-   git checkout -b feature/功能名称
-   ```
+### Prerequisites
 
-2. **提交规范**: 使用语义化提交信息
+-   Node.js (v16 or higher)
+-   A modern web browser that supports WebAssembly and `SharedArrayBuffer`.
 
-   ```bash
-   git commit -m "feat: 添加录音功能"
-   git commit -m "fix: 修复音频格式转换问题"
-   git commit -m "docs: 更新 README 文档"
-   ```
+### Installation
 
-3. **合并流程**: 功能完成后合并到主分支
-   ```bash
-   git checkout main
-   git merge feature/功能名称
-   ```
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/your-username/whisper-web-transcription.git
+    cd whisper-web-transcription
+    ```
 
-### 提交类型
+2.  Install the dependencies:
+    ```bash
+    npm install
+    ```
 
-- `feat`: 新功能
-- `fix`: 修复 bug
-- `docs`: 文档更新
-- `style`: 代码格式调整
-- `refactor`: 代码重构
-- `test`: 测试相关
-- `chore`: 构建工具、依赖更新
+### Running in Development Mode
 
-## 项目结构
-
-```
-whisper-web-transcription/
-├── src/
-│   ├── components/          # UI 组件
-│   ├── managers/           # 核心管理器
-│   ├── workers/            # Web Workers
-│   ├── utils/              # 工具函数
-│   └── styles/             # 样式文件
-├── public/                 # 静态资源
-├── tests/                  # 测试文件
-└── docs/                   # 文档
-```
-
-## 开发指南
-
-### 环境要求
-
-- Node.js 16+
-- 现代浏览器（支持 WebAssembly）
-
-### 安装和运行
+To start the development server, run:
 
 ```bash
-# 安装依赖
-npm install
-
-# 开发模式
 npm run dev
-
-# 构建
-npm run build
-
-# 预览构建结果
-npm run preview
 ```
 
-## 部署
+This will start a local server, and you can access the application at `http://localhost:5173`.
 
-项目配置为自动部署到 Vercel，推送到 main 分支即可触发部署。
+### Building for Production
 
-## 许可证
+To build the application for production, run:
 
-MIT License
+```bash
+npm run build
+```
+
+This will create a `dist` directory with the optimized and minified files, ready for deployment.
+
+## Development
+
+### Git Workflow
+
+This project follows a feature-branch workflow.
+
+1.  Create a new branch for each feature: `git checkout -b feature/your-feature-name`
+2.  Write your code and commit your changes with semantic commit messages (e.g., `feat(audio): add support for WAV files`).
+3.  Push your branch and create a pull request.
+
+### Scripts
+
+-   `npm run lint`: Lint the code using ESLint.
+-   `npm run format`: Format the code using Prettier.
+-   `npm run test`: Run the tests using Vitest.
+
+## Privacy
+
+This application is designed with privacy as a top priority. All audio processing and transcription happens directly in your browser. No audio data or transcription results are ever sent to or stored on any server.
+
+## License
+
+This project is licensed under the MIT License.
